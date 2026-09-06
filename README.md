@@ -144,6 +144,21 @@ Fluxo: `register` → `login` → `Authorize` (access token) → `/me`. Sem toke
 
 ---
 
+## 🔄 Operações (Contas)
+
+Contas de débito com saldo `NUMERIC(18,2)` e constraint `balance >= 0` no banco (ex.: saque de `0.01` com saldo `0` → 409, nunca negativo).
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `POST /api/v1/accounts` | Cria conta para o usuário autenticado → 201 |
+| `GET /api/v1/accounts` | Lista contas do usuário autenticado |
+| `POST /api/v1/accounts/{id}/deposits` | `{amount}` creditado via `UPDATE ... RETURNING` atômico → 200 saldo novo |
+| `POST /api/v1/accounts/{id}/withdrawals` | `{amount}` debitado; saldo insuficiente → 409; conta de outro usuário → 404 |
+
+Depósito e saque usam UPDATE atômico com `RETURNING` — sem read-modify-write, sem corrida entre requisições concorrentes (teste cobre 2 saques paralelos: 1 passa, 1 → 409).
+
+---
+
 ## 🗄️ Modelos (schema)
 
 | Tabela | Campos principais | Constraints |
@@ -186,7 +201,7 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 1 | `feature/models` | Modelos SQLAlchemy + schemas + fixtures | ✅ |
 | 2 | `feature/db` | Postgres docker-compose + Alembic + migração inicial | ✅ |
 | 3 | `feature/auth` | JWT + refresh token + register/login | ✅ |
-| 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ⏳ |
+| 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ✅ |
 | 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ⏳ |
 | 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ⏳ |
 | 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ⏳ |
