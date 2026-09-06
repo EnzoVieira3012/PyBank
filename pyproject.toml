@@ -1,0 +1,27 @@
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# Migracoes geradas pelo alembic ficam fora do lint/format
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+ignore = ["UP037"]  # quotes em forward refs SQLAlchemy (Mapped["User"]) sao intencionais
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Loop unico para a suite: engine async global + pool precisam de loop estavel
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+# Cobertura minima enforced no CI (--cov-fail-under=90). Dev roda pytest -q.
+addopts = "--cov=src --cov-fail-under=90"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_unused_ignores = true
+exclude = ["alembic/.*", "tests/.*", "scripts/.*"]
