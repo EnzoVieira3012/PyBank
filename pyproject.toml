@@ -2,6 +2,9 @@
 line-length = 100
 target-version = "py313"
 
+[tool.ruff.lint]
+ignore = ["UP037"]  # quotes em forward refs SQLAlchemy (Mapped["User"]) sao intencionais
+
 [tool.ruff.format]
 quote-style = "double"
 
