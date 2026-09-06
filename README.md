@@ -174,6 +174,21 @@ Separação rígida de camadas:
 
 ---
 
+## 🗄️ Modelos (schema)
+
+| Tabela | Campos principais | Constraints |
+|--------|-------------------|-------------|
+| `users` | `id` UUID PK, `email`, `password_hash` | UNIQUE email |
+| `accounts` | `id`, `user_id` FK, `balance` Numeric(18,2) | **CHECK `balance >= 0`** |
+| `transactions` | `id`, `account_id` FK, `type` enum (deposit/withdraw/transfer), `amount`, `counterpart_account_id` FK nullable | enums nativos |
+| `idempotency_keys` | `id`, `user_id` FK, `key`, `fingerprint`, `status` enum (pending/done), `response_status`, `response_body`, `expires_at` | **UNIQUE (`user_id`, `key`)** |
+| `audit_logs` | `id`, `user_id` FK nullable, `account_id` FK nullable, `action`, `before`/`after` JSON, `ip`, `correlation_id` | FKs opcionais |
+| `refresh_tokens` | `id`, `user_id` FK, `token_hash`, `expires_at`, `revoked` | UNIQUE token_hash |
+
+Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` (`created_at`/`updated_at`) — zero repetição de coluna.
+
+---
+
 ## 🔧 Variáveis de ambiente
 
 | Variável | Default | Descrição |
