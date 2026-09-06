@@ -105,7 +105,9 @@ PyBank treats that as **one workflow with three failure modes**, each proven by 
 | GET | `/api/v1/accounts/{id}/statement` | yes | 200 | Paginated statement |
 | GET | `/health` | — | 200/503 | Health check with live DB ping |
 
-Interactive docs: [Swagger UI](http://localhost:8000/docs) · [ReDoc](http://localhost:8000/redoc) · [OpenAPI JSON](http://localhost:8000/openapi.json)
+Docs (dev, local): [Swagger UI](http://localhost:8000/docs) · [ReDoc](http://localhost:8000/redoc) · [OpenAPI JSON](http://localhost:8000/openapi.json)
+
+Docs (prod, live): [API base URL](https://pybank-api-jlt5.onrender.com) · [Swagger UI](https://pybank-api-jlt5.onrender.com/docs) · [ReDoc](https://pybank-api-jlt5.onrender.com/redoc) · [OpenAPI JSON](https://pybank-api-jlt5.onrender.com/openapi.json)
 
 ![Swagger UI](docs/assets/swagger.png)
 
