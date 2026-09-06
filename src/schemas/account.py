@@ -10,6 +10,10 @@ class AccountCreate(BaseModel):
     initial_balance: Decimal = Field(default=Decimal(0), ge=0, max_digits=18, decimal_places=2)
 
 
+class AmountIn(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
+
+
 class AccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

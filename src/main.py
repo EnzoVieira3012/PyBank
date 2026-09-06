@@ -7,8 +7,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from src.config import settings
-from src.controllers import auth, me
+from src.controllers import accounts, auth, me
 from src.database import engine
+from src.exceptions import AccountNotFoundError, BusinessError
 from src.logging_setup import setup_logging
 from src.middleware import RequestContextMiddleware
 from src.security import CredentialsError
@@ -52,7 +53,18 @@ async def credentials_error_handler(request: Request, exc: CredentialsError) -> 
     return JSONResponse(status_code=401, content={"detail": "invalid credentials"})
 
 
+@app.exception_handler(AccountNotFoundError)
+async def account_not_found_handler(request: Request, exc: AccountNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(BusinessError)
+async def business_error_handler(request: Request, exc: BusinessError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 app.include_router(auth.router)
+app.include_router(accounts.router)
 app.include_router(me.router)
 
 
