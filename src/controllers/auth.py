@@ -74,6 +74,7 @@ async def register(
         ip=client_ip(request),
         correlation_id=correlation_id(request),
     )
+    await session.commit()  # visivel antes da resposta: evita corrida register->login
     return user
 
 
@@ -98,7 +99,9 @@ async def login(
         ip=client_ip(request),
         correlation_id=correlation_id(request),
     )
-    return await _issue_token_pair(session, user)
+    tokens = await _issue_token_pair(session, user)
+    await session.commit()  # rotacao/refresh token + auditoria persistidos antes da resposta
+    return tokens
 
 
 @router.post(
@@ -129,7 +132,9 @@ async def refresh(
         ip=client_ip(request),
         correlation_id=correlation_id(request),
     )
-    return await _issue_token_pair(session, user)
+    tokens = await _issue_token_pair(session, user)
+    await session.commit()  # rotacao/refresh token + auditoria persistidos antes da resposta
+    return tokens
 
 
 @router.post("/logout", status_code=204)
@@ -151,4 +156,5 @@ async def logout(
         ip=client_ip(request),
         correlation_id=correlation_id(request),
     )
+    await session.commit()  # revogacao + auditoria persistidas antes da resposta
     return Response(status_code=204)

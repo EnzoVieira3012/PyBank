@@ -248,6 +248,41 @@ Collection with centralized variables — set `baseUrl`, `apiEmail`, `apiSenha` 
 
 ---
 
+## Deploy
+
+Two paths, same image (multi-stage `Dockerfile`, non-root user, healthcheck).
+
+### Option A — VPS with Docker Compose (recommended)
+
+```bash
+cp .env.example .env        # fill real secrets — .env never committed
+docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:8000/health
+```
+
+Checklist (hardening):
+
+- Firewall: `ufw allow 22/tcp; ufw allow 80/tcp; ufw allow 443/tcp` — **5432 stays internal** (`docker-compose.prod.yml` does not expose it)
+- SSH: key auth only, `PasswordAuthentication no`, `fail2ban`
+- HTTPS: Caddy / Traefik / certbot reverse proxy on 80/443 → `app:8000`
+- `.env`: `chmod 600`
+- Rate limiting already in-app (login per-IP, mutations per-user) — optional nginx `limit_req` in front
+- Logs: JSON formatter on stdout → docker logs / journald; add UptimeRobot ping on `/health`
+
+### Option B — Render (free tier)
+
+1. Create **free Postgres** — copy its `Internal Database URL` into `DATABASE_URL` below (Render may give `postgres://`; convert to `postgresql+asyncpg://`)
+2. Create **free Web Service** linked to this repo (branch `main`) — Runtime `Python 3`, Build Command empty, Start Command `./render_deploy.sh`
+3. Environment (dashboard): `DATABASE_URL`, `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `RATE_LIMIT_LOGIN`, `RATE_LIMIT_MUTATIONS`, `CORS_ORIGINS`
+4. Wait for auto-deploy; check `https://<service>.onrender.com/health` → `200`
+5. Add UptimeRobot monitor on `/health` (free) — the app itself is free-tier friendly (no Redis, no workers)
+6. Put the public URL in the Swagger `baseUrl` Postman variable
+
+Always free plan — this app uses no paid-only Render features (in-process rate limiter, no background workers, no extra infra).
+
+---
+
 ## Key mechanisms
 
 - **Idempotency**: `Idempotency-Key` header required on all mutating POSTs (missing → 400). Same key + same body → stored byte-identical replay. Same key + different body → 409. The key row commits or rolls back **with** the operation — a failed op frees the key for retry.

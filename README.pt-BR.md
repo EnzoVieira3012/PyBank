@@ -237,6 +237,41 @@ Collection com variáveis centralizadas — configure `baseUrl`, `apiEmail`, `ap
 
 ---
 
+## Deploy
+
+Dois caminhos, mesma imagem (Dockerfile multi-stage, usuário não-root, healthcheck).
+
+### Opção A — VPS com Docker Compose (recomendado)
+
+```bash
+cp .env.example .env        # preencha segredos reais — .env nunca versionado
+docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:8000/health
+```
+
+Checklist (hardening):
+
+- Firewall: `ufw allow 22/tcp; ufw allow 80/tcp; ufw allow 443/tcp` — **5432 fica interno** (`docker-compose.prod.yml` não expõe)
+- SSH: só chave, `PasswordAuthentication no`, `fail2ban`
+- HTTPS: proxy reverso Caddy / Traefik / certbot em 80/443 → `app:8000`
+- `.env`: `chmod 600`
+- Rate limiting já embutido na app (login por-IP, mutações por-usuário) — nginx `limit_req` opcional na frente
+- Logs: formatter JSON no stdout → docker logs / journald; monitore `/health` com UptimeRobot
+
+### Opção B — Render (plano free)
+
+1. Crie **Postgres free** — copie o `Internal Database URL` para `DATABASE_URL` abaixo (Render pode dar `postgres://`; converta para `postgresql+asyncpg://`)
+2. Crie **Web Service free** ligado neste repo (branch `main`) — Runtime `Python 3`, Build Command vazio, Start Command `./render_deploy.sh`
+3. Environment (dashboard): `DATABASE_URL`, `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `RATE_LIMIT_LOGIN`, `RATE_LIMIT_MUTATIONS`, `CORS_ORIGINS`
+4. Aguarde o auto-deploy; confira `https://<service>.onrender.com/health` → `200`
+5. Adicione monitor UptimeRobot em `/health` (free) — a app é amigável ao free tier (sem Redis, sem workers)
+6. Coloque a URL pública na variável `baseUrl` do Postman
+
+Sempre plano free — a app não usa recursos pagos do Render (rate limiter em processo, sem workers, sem infra extra).
+
+---
+
 ## Mecanismos-chave
 
 - **Idempotência**: header `Idempotency-Key` obrigatório em todos os POSTs mutáveis (ausente → 400). Mesma key + mesmo body → replay byte-idêntico gravado. Mesma key + body diferente → 409. A linha da key commita ou rola back **junto com** a operação — operação falhou, key liberada para retry.
