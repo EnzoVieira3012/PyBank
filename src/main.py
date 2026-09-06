@@ -18,8 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from src.api import api_router
 from src.config import Settings, settings
-from src.controllers import accounts, auth, me, statements, transfers
 from src.database import async_session, engine
 from src.exceptions import BusinessError
 from src.logging_setup import setup_logging
@@ -135,11 +135,7 @@ def create_app(cfg: Settings | None = None) -> FastAPI:
         )
 
     # --- routers ---
-    app.include_router(auth.router)
-    app.include_router(accounts.router)
-    app.include_router(transfers.router)
-    app.include_router(statements.router)
-    app.include_router(me.router)
+    app.include_router(api_router)
 
     # --- health: ping no banco via session; 503 se DB fora ---
     @app.get("/health", tags=["health"], summary="Health check com ping no DB")

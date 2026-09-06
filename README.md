@@ -1,267 +1,119 @@
-# 🏦 PyBank
+# PyBank — Async Banking API
 
-[![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-100%25_async-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/) [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-4479A1)](https://www.sqlalchemy.org/) [![Postgres](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/) [![Alembic](https://img.shields.io/badge/Alembic-Migrations-00C7B7)](https://alembic.sqlalchemy.org/) [![JWT](https://img.shields.io/badge/JWT-Auth-000000)](https://jwt.io/) [![CI](https://img.shields.io/badge/CI-GitHub_Actions-181717?logo=github&logoColor=white)](https://github.com/EnzoVieira3012/PyBank/actions) [![LinkedIn](https://img.shields.io/badge/LinkedIn-Enzo_Vieira-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/enzovieiratrabalho/)
+[![CI](https://github.com/EnzoVieira3012/PyBank/actions/workflows/ci.yml/badge.svg)](https://github.com/EnzoVieira3012/PyBank/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-96%25-3fb950)](https://github.com/EnzoVieira3012/PyBank)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**API bancária assíncrona em Python — nível pleno, projeto portfolio.**
+> **Português?** [README.pt-BR.md](README.pt-BR.md)
 
-PyBank é uma API REST bancária `100% async` construída com FastAPI, SQLAlchemy 2.0 e PostgreSQL. Aplica arquitetura de mercado: camadas separadas (models / schemas / services / controllers), transações atômicas com `SELECT FOR UPDATE`, trilha de auditoria, idempotência, autenticação JWT com refresh token e cobertura de testes ≥ 90%.
+Async banking API built with FastAPI + PostgreSQL that processes deposits and transfers **without duplicating or losing money under concurrency**.
 
-Open source (MIT License). Em desenvolvimento — setup, models, db, auth, transações, transferência, auditoria, idempotência, extrato, rate limit, API completa e cobertura concluídos. CI em `feature/ci`.
+That's the whole project: **one workflow, not twelve features**. Every design decision (idempotency at the DB constraint level, `SELECT ... FOR UPDATE` with fixed lock order, atomic `UPDATE ... RETURNING`, audit trail) exists to hold that single invariant:
 
----
-
-## 🛠️ Stack
-
-| | |
-|---|---|
-| 🐍 **Python 3.13+** | Linguagem principal |
-| ⚡ **FastAPI 100% async** | Framework HTTP, Pydantic v2 + pydantic-settings |
-| 🗄️ **SQLAlchemy 2.0 async + asyncpg** | ORM assíncrono |
-| 🔄 **Alembic** | Migrações (nunca `create_all` em produção) |
-| 🐘 **PostgreSQL 16** | Banco de dados (docker-compose local e CI) |
-| 🔐 **JWT + bcrypt** | Autenticação e refresh token rotativo |
-| 🧪 **pytest + pytest-asyncio + httpx** | Testes unitários e de integração (Postgres real) |
-| 🧹 **ruff + mypy** | Lint e tipagem estática |
-| 🚀 **GitHub Actions** | CI desde o primeiro push |
+> **1 request = 1 effect. Money never appears twice, never disappears.**
 
 ---
 
-## 📦 Estrutura alvo
+## Badges
+
+| Metric | Value |
+|--------|-------|
+| Tests | 94 passing (lint + mypy + Postgres 16 real + Docker build on CI) |
+| Coverage | **96%** (goal ≥ 90%) |
+| Runtime | Python 3.13, FastAPI, SQLAlchemy 2 (async), asyncpg, Alembic |
+| CI | GitHub Actions — 3 jobs: lint, tests, docker |
+
+---
+
+## Architecture
 
 ```
-src/
-├── main.py               # create_app factory + lifespan + error handlers
-├── config.py             # pydantic-settings, fail-fast SECRET_KEY
-├── logging_setup.py      # logs JSON + correlation ID
-├── database.py           # engine async + session (commit/rollback) + pool_pre_ping
-├── models/               # User, Account, Transaction, IdempotencyKey, AuditLog, RefreshToken
-├── schemas/              # Pydantic In/Out + enums
-├── security.py           # JWT, bcrypt, hash de refresh token
-├── deps.py               # get_current_user (Bearer → 401)
-├── controllers/          # routers /api/v1 (auth, me)
-├── middleware.py         # request/correlation ID, security headers
-└── alembic/              # migrações (env.py async, URL via settings)
-tests/
-├── fixtures/
-│   └── factories.py      # dados de teste com ROUND_HALF_UP
-├── conftest.py           # DB real + TRUNCATE por teste
-├── unit/
-└── integration/
-docker-compose.yml
-Dockerfile
-.github/workflows/ci.yml
+                        ┌──────────────────────────────────────────────┐
+                        │                 Client / Postman             │
+                        └──────────────────────┬───────────────────────┘
+                                               │ HTTPS / JSON
+                                               ▼
+                        ┌──────────────────────────────────────────────┐
+                        │              FastAPI app (async)             │
+                        │                                              │
+                        │  RequestContextMiddleware ── correlation_id  │
+                        │       │        │          │                  │
+                        │       ▼        ▼          ▼                  │
+                        │  CORS     security   RateLimiter             │
+                        │  headers  headers    (60s window)            │
+                        │                                              │
+                        │              APIRouter /api/v1               │
+                        │  auth · accounts · transfers · statements    │
+                        └──────────────────────┬───────────────────────┘
+                                               │
+                                               ▼
+                        ┌──────────────────────────────────────────────┐
+                        │            Services (business rules)         │
+                        │  accounts · transfers · statements · audit   │
+                        │  idempotency · auth                          │
+                        └──────────────────────┬───────────────────────┘
+                                               │ SQLAlchemy 2 (async)
+                                               ▼
+                        ┌──────────────────────────────────────────────┐
+                        │            PostgreSQL 16 (single DB)         │
+                        │                                              │
+                        │  UNIQUE(user_id, key)  ── idempotency        │
+                        │  CHECK (balance >= 0)   ── oversell guard     │
+                        │  enum types            ── no magic strings   │
+                        │  composite index       ── statement queries  │
+                        └──────────────────────────────────────────────┘
 ```
 
----
+**Constraints live in the database, not in the app.** The app is just the orchestrator; the DB is the source of truth:
 
-## 🚀 Como rodar local
-
-> Requer **Docker** (Postgres 16) e **Python 3.13+**.
-
-```powershell
-# 1. Sobe o Postgres 16
-docker compose up -d
-
-# 2. Ambiente virtual
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-
-# 3. Dependências
-pip install -r requirements.txt -r requirements-dev.txt
-
-# 4. Configuração
-cp .env.example .env
-# Edite .env: gere uma SECRET_KEY forte
-
-# 5. Cria o schema (migrações Alembic)
-alembic upgrade head
-
-# 6. Sobe a API
-python -m uvicorn src.main:app --reload
-```
-
-> 🔐 **Segurança**: credenciais do banco (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`) e `SECRET_KEY` vivem **só** no `.env` (gitignored). O `docker-compose.yml` referencia o `.env` — nunca credenciais hardcoded em arquivos commitados. Mesma regra no `alembic.ini` (URL vazia, vem do `settings`).
-
-Docs interativas: **http://localhost:8000/docs**
+- `UNIQUE (user_id, key)` on `idempotency_keys` — race-safe dedup at the constraint level
+- `CHECK (balance >= 0)` on `accounts` — final backstop against oversell
+- Native PG `enum` for transaction types — no invalid values possible
+- `SELECT ... FOR UPDATE ... ORDER BY id` — deterministic lock order, deadlock-free
 
 ---
 
-## 🧪 Testes e qualidade
+## The Problem
 
-```powershell
-# Testes (requer Docker up — usa Postgres real, não fake)
-python -m pytest
+Banking operations are stateful and concurrent. Two retries of the same deposit, or 100 simultaneous withdrawals on one balance — naive code duplicates money or oversells it.
 
-# Cobertura (meta: ≥90%)
-python -m pytest --cov=src --cov-report=term-missing
+PyBank treats that as **one workflow with three failure modes**, each proven by a test:
 
-# Lint e formatação
-ruff check .
-ruff format .
-
-# Tipagem
-mypy src
-```
-
-> Migrações são manuais (`alembic upgrade head`) — **nunca `create_all`** (síncrono, quebra com asyncpg). CI/deploy rodam migração por script. Cobertura de migrações e schema é validada nos testes de integração.
+| Failure | What happens | Proof |
+|---------|--------------|-------|
+| Same request arrives twice | 1 effect; 2nd response is a byte-identical replay | integration test, same `Idempotency-Key` |
+| Balance changes concurrently | Only 1 operation wins; invariant holds | 100-way race, 5 cycles |
+| Insufficient balance | `409`, nothing written | integration test (0 transactions, 0 audit rows) |
 
 ---
 
-## 🧪 Testar no Postman
+## Endpoints
 
-Collection pronta com **variáveis centralizadas** — configure uma vez, use em tudo:
+| Method | Path | Auth | Success | Description |
+|--------|------|------|---------|-------------|
+| POST | `/api/v1/auth/register` | — | 201 | Create user |
+| POST | `/api/v1/auth/login` | — | 200 | Login (IP rate-limited) |
+| POST | `/api/v1/auth/refresh` | — | 200 | Rotate tokens (IP rate-limited) |
+| POST | `/api/v1/auth/logout` | yes | 204 | Revoke refresh token |
+| GET | `/api/v1/me` | yes | 200 | Current user |
+| POST | `/api/v1/accounts` | yes | 201 | Create account |
+| GET | `/api/v1/accounts` | yes | 200 | List accounts |
+| POST | `/api/v1/accounts/{id}/deposits` | yes | 201 | Deposit (user rate-limited) |
+| POST | `/api/v1/accounts/{id}/withdrawals` | yes | 201 | Withdraw (user rate-limited) |
+| POST | `/api/v1/transfers` | yes | 201 | Transfer (user rate-limited) |
+| GET | `/api/v1/accounts/{id}/statement` | yes | 200 | Paginated statement |
+| GET | `/health` | — | 200/503 | Health check with live DB ping |
 
-1. **Download direto**: [PyBank.postman_collection.json](https://github.com/EnzoVieira3012/PyBank/releases/download/v0.4/PyBank.postman_collection.json) — clica e baixa o arquivo (Release asset, sem clone).
-2. Coleção: [PyBank.postman_collection.json](https://raw.githubusercontent.com/EnzoVieira3012/PyBank/develop/docs/postman/PyBank.postman_collection.json) — a URL abre o JSON no navegador; no Postman não precisa baixar (ver passo 3) e, se quiser o arquivo, use o botão **↘ Download raw file** (canto superior direito da página).
-3. Postman → **Import** → aba **Link** → cole a URL acima → importa direto (ou Import → File, se baixou).
-3. Abra a collection → aba **Variables** — edite só aqui: `baseUrl`, `apiEmail`, `apiSenha`.
-4. Rode `Login` primeiro — ele **preenche `accessToken`/`refreshToken` automaticamente** nos testes.
-5. Endpoints protegidos (`Me`, `Logout`) já usam `Authorization: Bearer {{accessToken}}` — nada hardcoded.
+Interactive docs: [Swagger UI](http://localhost:8000/docs) · [ReDoc](http://localhost:8000/redoc) · [OpenAPI JSON](http://localhost:8000/openapi.json)
 
-| Request | Depende de |
-|---------|-----------|
-| `Health` | nada |
-| `Register` | `apiEmail`/`apiSenha` |
-| `Login` | `apiEmail`/`apiSenha` → grava tokens |
-| `Refresh` | `refreshToken` (rotação: reuso → 401) |
-| `Me` | `accessToken` |
-| `Logout` | `accessToken` + `refreshToken` |
+![Swagger UI](docs/assets/swagger.png)
 
----
-
-## 🔐 Autenticação
-
-JWT HS256 com refresh token rotativo e revogável (armazenado como hash SHA-256 no banco — token puro nunca persiste).
-
-| Endpoint | Descrição |
-|----------|-----------|
-| `POST /api/v1/auth/register` | Cria conta → 201 `UserOut`; e-mail duplicado → 409 |
-| `POST /api/v1/auth/login` | Login → `{access_token, refresh_token, token_type}`; erro → 401 "invalid credentials" (não vaza existência) |
-| `POST /api/v1/auth/refresh` | Rotação: revoga o refresh usado, emite par novo; reuso → 401 |
-| `POST /api/v1/auth/logout` | Revoga o refresh token (requer auth) → 204 |
-| `GET /api/v1/me` | Dados do usuário autenticado (`Authorization: Bearer`) |
-
-Fluxo: `register` → `login` → `Authorize` (access token) → `/me`. Sem token ou token inválido → 401.
-
----
-
-## 🔄 Operações (Contas)
-
-Contas de débito com saldo `NUMERIC(18,2)` e constraint `balance >= 0` no banco (ex.: saque de `0.01` com saldo `0` → 409, nunca negativo).
-
-| Endpoint | Descrição |
-|----------|-----------|
-| `POST /api/v1/accounts` | Cria conta para o usuário autenticado → 201 |
-| `GET /api/v1/accounts` | Lista contas do usuário autenticado |
-| `POST /api/v1/accounts/{id}/deposits` | `{amount}` creditado via `UPDATE ... RETURNING` atômico → 200 saldo novo |
-| `POST /api/v1/accounts/{id}/withdrawals` | `{amount}` debitado; saldo insuficiente → 409; conta de outro usuário → 404 |
-
-Depósito e saque usam UPDATE atômico com `RETURNING` — sem read-modify-write, sem corrida entre requisições concorrentes (teste cobre 2 saques paralelos: 1 passa, 1 → 409).
-
----
-
-## 💸 Transferência
-
-| Endpoint | Descrição |
-|----------|-----------|
-| `POST /api/v1/transfers` | `{from_account_id, to_account_id, amount}` → 201 com id da transferência |
-
-Regras de execução (atômicas, um único commit):
-
-- **Lock em ordem fixa**: uma query só — `SELECT ... FOR UPDATE ... ORDER BY id` nas duas contas. Transferências cruzadas (A→B e B→A) serializam na mesma ordem → deadlock impossível.
-- **Rollback único**: débito da origem + crédito do destino + 2 registros `Transaction` (`type=transfer`, `counterpart_account_id` preenchido nos dois lados) — tudo no mesmo commit. Qualquer erro (saldo insuficiente, conta inexistente) → rollback total, nenhum lado muda.
-- Validações: mesma conta → 409; conta origem de outro usuário ou inexistente → 404; saldo insuficiente → 409.
-- Garantia final no banco: `CHECK (balance >= 0)` como backstop.
-- Teste de corrida: 100 transferências paralelas (50 A→B + 50 B→A) com saldo total invariante — nada se perde.
-
----
-
-## 🗂️ Auditoria (compliance)
-
-Toda operação financeira e de autenticação grava um `AuditLog` na **mesma transação** da operação:
-
-- Quem (`user_id`), quando (`created_at`), de onde (IP), e `before`/`after` com os saldos reais.
-- Depósito, saque e transferência: `action="deposit" | "withdraw" | "transfer"` com saldos antes/depois (transferência registra os dois lados: `from_balance`/`to_balance`).
-- Register, login, refresh e logout: `action` correspondente, sem conta.
-- **Correlation ID**: o header `X-Request-ID` (ou UUID gerado pelo middleware) fica em `correlation_id` do log — rastreio ponta a ponta de uma requisição.
-- Commit único: se a operação falha e dá rollback, o log some junto — **zero log órfão** (coerência de auditoria).
-
-Sem endpoint público de auditoria — dado é interno, para risco/compliance.
-
----
-
-## 🔁 Idempotência
-
-Header **`Idempotency-Key`** obrigatório nos métodos mutáveis (`deposits`, `withdrawals`, `transfers`) — falta → 400. Retry não duplica:
-
-- **Replay**: mesma key + mesmo body → mesma resposta gravada (status e JSON idênticos), nada re-executa.
-- **Conflito**: mesma key com body diferente → 409 `idempotency key reuse with different payload`.
-- **Corrida**: 2 requests simultâneos com mesma key → `UNIQUE(user_id, key)` resolve atomicamente (`INSERT ... ON CONFLICT DO NOTHING`): exatamente 1 executa, o outro → 409 `request in progress` (ou replay quando o 1º concluir).
-- **Fingerprint**: `sha256` do **body cru** (bytes exatos recebidos) — nunca re-canonicalizado, senão whitespace/ordem de campos viraria falso 409.
-- **TTL**: chave expira em 24h (`expires_at`) — expirada volta a aceitar claim como novo.
-- **Rollback junto**: operação que falha dá rollback da chave também — retry executa limpo.
-
-Decisão de arquitetura: tabela Postgres com `UNIQUE(user_id, key)` resolve a corrida com constraint atômica — sem dependência externa. Redis (ou similar) só faria sentido com escala horizontal multi-instância (trade-off revisitado no deploy).
-
----
-
-## 🛡️ Rate limiting
-
-Limites por janela de 60s, in-memory (sem Redis, sem `slowapi`):
-
-| Escopo | Limite | Endpoints | Chave |
-|--------|--------|-----------|-------|
-| Login | `10/min` (configurável) | `POST /auth/login`, `POST /auth/refresh` | IP do cliente |
-| Mutações | `100/min` (configurável) | `POST /accounts/{id}/deposits`, `/withdrawals`, `/transfers` | `user_id` autenticado |
-
-Por que IP no login e `user_id` nas mutações: protege contra brute-force de credencial sem punir múltiplos usuários atrás do mesmo NAT. Mutações vão por usuário para não derrubar clientes legítimos que compartilham IP corporativo.
-
-Resposta quando excede (HTTP 429):
-
-```http
-HTTP/1.1 429 Too Many Requests
-Retry-After: 42
-Content-Type: application/json
-
-{"detail": "rate limit exceeded"}
-```
-
-`Retry-After` informa quantos segundos esperar até a janela liberar.
-
-Headers de segurança já vêm do `RequestContextMiddleware` (presentes em toda resposta): `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`.
-
-Configuração via env (`.env`/`.env.example`):
-
-```env
-RATE_LIMIT_LOGIN=10
-RATE_LIMIT_MUTATIONS=100
-```
-
-Quando migrar para mais de 1 instância, trocar os `RateLimiter` in-memory por Redis (mesma interface `allow/clear`); `ponytail:` documentado em `src/rate_limit.py`.
-
----
-
-## 📚 Documentação da API
-
-| Recurso | URL | |
-|---------|-----|---|
-| Swagger UI | `http://localhost:8000/docs` | Interativo, testa direto do navegador |
-| ReDoc | `http://localhost:8000/redoc` | Documentação somente leitura |
-| OpenAPI JSON | `http://localhost:8000/openapi.json` | Schema para geração de clientes |
-
-A factory `create_app()` produz uma instância FastAPI com:
-
-- `title="PyBank API"`, `version="1.0.0"`, `openapi_tags` por recurso (auth/accounts/transfers/statements/me/health)
-- Status `201` em todos os POSTs de mutação
-- Error handlers JSON uniformes (ver abaixo)
-
-### Envelope de erro padrão
-
-Toda resposta de erro retorna:
+Every error returns a uniform envelope (with `correlation_id` for log correlation):
 
 ```json
 {
-  "detail": "mensagem legível",
+  "detail": "human-readable message",
   "status_code": 404,
   "path": "/api/v1/transfers",
   "method": "POST",
@@ -269,197 +121,158 @@ Toda resposta de erro retorna:
 }
 ```
 
-| Status | Quando | Handler |
-|--------|--------|---------|
-| 400 | Regra de negócio com body específico (transferência inválida) | `BusinessError` filha |
-| 401 | Credenciais inválidas | `CredentialsError` |
-| 404 | Conta/transação não encontrada | `BusinessError` filha (`AccountNotFoundError`) |
-| 409 | Conflito (idempotência em uso) | `BusinessError` filha (`IdempotencyConflictError`) |
-| 422 | Validação (Pydantic) | `RequestValidationError` (envelope inclui `errors[]`) |
-| 429 | Rate limit estourado | `RateLimitError` (header `Retry-After`) |
-| 500 | Erro inesperado (logado, não exposto) | `Exception` |
-
-`correlation_id` vem do middleware (`RequestContextMiddleware`); útil para cruzar com `logs/`.
-
-### Endpoints
-
-| Método | Path | Auth | Status sucesso | Descrição |
-|--------|------|------|----------------|-----------|
-| POST | `/api/v1/auth/register` | — | 201 | Cadastro |
-| POST | `/api/v1/auth/login` | — | 200 | Login (limit IP) |
-| POST | `/api/v1/auth/refresh` | — | 200 | Renovar tokens (limit IP) |
-| POST | `/api/v1/auth/logout` | sim | 204 | Revoga refresh token |
-| GET  | `/api/v1/me` | sim | 200 | Dados do usuário |
-| POST | `/api/v1/accounts` | sim | 201 | Criar conta |
-| GET  | `/api/v1/accounts` | sim | 200 | Listar contas |
-| POST | `/api/v1/accounts/{id}/deposits` | sim | 201 | Depositar (limit user) |
-| POST | `/api/v1/accounts/{id}/withdrawals` | sim | 201 | Sacar (limit user) |
-| POST | `/api/v1/transfers` | sim | 201 | Transferir (limit user) |
-| GET  | `/api/v1/accounts/{id}/statement` | sim | 200 | Extrato paginado |
-| GET  | `/health` | — | 200/503 | Health check com ping no DB |
+| Status | When |
+|--------|------|
+| 400 | Business rule with specific body (e.g., transfer missing `Idempotency-Key`) |
+| 401 | Invalid credentials / expired token |
+| 404 | Account not found (or not yours — never leaks existence) |
+| 409 | Conflict: idempotency key in use, insufficient balance, same-account transfer |
+| 422 | Pydantic validation (envelope includes `errors[]`) |
+| 429 | Rate limit exceeded (`Retry-After` header) |
+| 500 | Unexpected error — logged, never exposed |
 
 ---
 
-## 📄 Extrato paginado
+## Failure Table (what happens when…)
 
-`GET /api/v1/accounts/{account_id}/statement` — lançamentos da conta, paginados e filtráveis. Acesso restrito ao dono da conta (outro usuário → 404).
-
-| Query | Tipo | Padrão | Descrição |
-|-------|------|--------|-----------|
-| `page` | int | 1 | Página (≥ 1) |
-| `page_size` | int | 20 | Itens por página (1–100) |
-| `type` | `deposit`/`withdraw`/`transfer` | — | Filtra por tipo |
-| `from` | datetime | — | `created_at >=` (inclusivo) |
-| `to` | datetime | — | `created_at <=` (inclusivo) |
-
-Ordena por `created_at DESC, id DESC` (mais recentes primeiro). Resposta:
-
-```json
-{
-  "account_id": "uuid",
-  "items": [
-    { "id": "uuid", "type": "deposit", "amount": "100.00", "created_at": "2026-09-01T10:00:00" }
-  ],
-  "meta": { "page": 1, "page_size": 20, "total_items": 1, "total_pages": 1 }
-}
-```
-
-Exemplo com filtros:
-
-```
-GET /api/v1/accounts/{id}/statement?page=2&page_size=5&type=deposit&from=2026-09-01T00:00:00&to=2026-09-30T23:59:59
-```
-
-Performance: índice composto `(account_id, created_at DESC)` mantém leitura por conta em Index Scan — `EXPLAIN ANALYZE` mostrou ganho ≈14× vs. planos com Sort (detalhes em `docs/medicoes.md`).
+| Failure | Behavior | Proof |
+|---------|----------|-------|
+| Same request body arrives 2× (retry) | 1 effect; 2nd response is a byte-identical replay of the stored response; nothing re-executes | `test_failure_matrix` — duplicate scenario |
+| Same key, different body | `409 idempotency key reuse different payload` — never mixes payloads | integration test |
+| 2 concurrent requests, same key | `UNIQUE(user_id, key)` + `INSERT ... ON CONFLICT DO NOTHING` — exactly 1 executes; the other gets `409 request in progress` or replay | race test |
+| Balance changes concurrently (100 simultaneous ops) | Only 1 operation wins per row lock; invariant `balance >= 0` holds | `test_falha_corrida_100_saques...` — 100/100 success, final balance 0.00, 0 oversell, 5 cycles |
+| Withdrawal/transfer > balance | `409`, full rollback — 0 transactions, 0 audit rows | integration test — insufficient balance |
+| Brute-force login attempts | Per-IP limit: 10/min → `429` + `Retry-After` | rate-limit tests |
+| API abuse (spam mutations) | Per-user limit: 100/min on deposits/withdrawals/transfers → `429` | rate-limit tests |
+| Transfer A→B and B→A concurrently | Fixed lock order (`ORDER BY id`) — serializes, deadlock impossible | transfer tests |
+| Idempotency key expired (24h TTL) | Accepted as new claim | TTL test |
 
 ---
 
-## 🧪 Cobertura e testes de falha
+## Rejected Decisions (ADR)
 
-Cobrem o que recrutadores pedem: duplicação, corrida e saldo insuficiente.
+| Decision | Rejected option | Why |
+|----------|-----------------|-----|
+| **Postgres `UNIQUE` for idempotency** | Redis | Constraint-level atomicity, zero extra infra, durable across restarts. Redis only pays off with horizontal multi-instance scaling — revisit at deploy |
+| **`SELECT ... FOR UPDATE` with fixed order** | Optimistic locking (version column) | Pessimistic lock serializes the cash flow with one query; optimistic would retry-fail a losing writer. Optimistic becomes viable on a hot single row (very high contention) |
+| **Offset pagination** | Cursor-based | Offset + composite index is enough at current volume; cursor avoids the deep-page scan past ~100k rows — swap when needed |
+| **Direct `bcrypt`** | `passlib` | `passlib` breaks with `bcrypt>=4.1` (known incompatibility); direct `bcrypt` is stable, fewer deps |
 
-### 3 cenários canônicos de falha (`tests/integration/test_failure_matrix.py`)
+---
 
-| Cenário | Como exercita | Invariante |
-|---------|---------------|------------|
-| **Duplicado** | mesmo `Idempotency-Key` em 2 POSTs idênticos | 1 só efeito, 2 respostas byte-idênticas |
-| **Corrida** | 100 saques concorrentes de 1.00 vs saldo 100.00 (5 ciclos) | 100 sucessos por rodada, saldo final 0.00, 0 oversell |
-| **Saldo insuficiente** | saque/transfer acima do saldo | 409 + 0 transactions + 0 audit_logs gravados |
+## Measurements
 
-A corrida usa `asyncio.gather` + 100 `AsyncClient` (cada request com sessão
-própria) exercitando o `SELECT FOR UPDATE ORDER BY id` — sem lock haveria
-oversell. Detalhes em `docs/medicoes.md` (seção "Corrida x100").
+### Concurrency race ×100 — 5 cycles
 
-### Cobertura
+Scenario: 1 account with `100.00`, 100 concurrent withdrawals of `1.00`, via `asyncio.gather` + 100 independent `AsyncClient` sessions.
 
-`pytest --cov=src --cov-report=term-missing` → **96%** (meta ≥ 90%).
+Without the row lock, this test would oversell (negative balance). With `SELECT ... FOR UPDATE ... ORDER BY id`:
 
-Mapa por módulo: `docs/medicoes.md` (seção "Cobertura"). 5 testes de
-`test_coverage_gaps.py` exercitam o que o fluxo normal não cobre (JSON
-formatter, schemas pequenos, setup_logging).
+| Cycle | Withdrawals 201 | Final balance | Transactions persisted | Time |
+|-------|-----------------|---------------|------------------------|------|
+| 1 | 100/100 | 0.00 | 100 withdrawals | < 60s |
+| 2 | 100/100 | 0.00 | +100 | idem |
+| 3 | 100/100 | 0.00 | +100 | idem |
+| 4 | 100/100 | 0.00 | +100 | idem |
+| 5 | 100/100 | 0.00 | +100 | idem |
 
-### Comandos
+Invariant: `money in = money out` on every cycle. Reproduce: `python -m pytest tests/integration/test_failure_matrix.py`.
+
+### Composite index — before / after
+
+Query: single account statement (5,000 rows) filtered by `type` + date window, `ORDER BY created_at DESC LIMIT 20` — 10,000 seeded transactions.
+
+| Index | Plan | Execution time |
+|-------|------|----------------|
+| None (only `account_id`) | Bitmap scan → filter discarded 3,735 rows → top-N sort | **0.698 ms** |
+| `(account_id, created_at DESC)` | Index scan on the window, residual filter discarded only 38 rows, no sort | **0.050 ms** — **~14× faster** |
+
+Migration: `a183cc6c2083_indice_composto_account_created_at`. Reproduce: `python scripts/seed.py` → `EXPLAIN ANALYZE` with and without the index (`alembic downgrade -1` / `upgrade head`).
+
+### Test suite
+
+94 tests · coverage **96%** (goal ≥ 90%) · runs on a real Postgres 16 (test DB `pybank_test`, isolated from dev) · 5 targeted tests cover the gaps the happy path misses (JSON formatter, small schemas, logging setup).
 
 ```powershell
-# suite completa
 .venv\Scripts\python.exe -m pytest -q
-
-# com cobertura
 .venv\Scripts\python.exe -m pytest --cov=src --cov-report=term-missing
-
-# linter + format
 .venv\Scripts\python.exe -m ruff check .
-.venv\Scripts\python.exe -m ruff format --check .
+.venv\Scripts\python.exe -m mypy src
 ```
 
 ---
 
-## 🗄️ Modelos (schema)
+## Run locally
 
-| Tabela | Campos principais | Constraints |
-|--------|-------------------|-------------|
-| `users` | `id` UUID PK, `email`, `password_hash` | UNIQUE email |
-| `accounts` | `id`, `user_id` FK, `balance` Numeric(18,2) | **CHECK `balance >= 0`** |
-| `transactions` | `id`, `account_id` FK, `type` enum (deposit/withdraw/transfer), `amount`, `counterpart_account_id` FK nullable | enums nativos |
-| `idempotency_keys` | `id`, `user_id` FK, `key`, `fingerprint`, `status` enum (pending/done), `response_status`, `response_body`, `expires_at` | **UNIQUE (`user_id`, `key`)** |
-| `audit_logs` | `id`, `user_id` FK nullable, `account_id` FK nullable, `action`, `before`/`after` JSON, `ip`, `correlation_id` | FKs opcionais |
-| `refresh_tokens` | `id`, `user_id` FK, `token_hash`, `expires_at`, `revoked` | UNIQUE token_hash |
+Requirements: Docker (Postgres 16) + Python 3.13.
 
-Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` (`created_at`/`updated_at`) — zero repetição de coluna.
+```powershell
+# 1. env (never commit real secrets — copy from template)
+Copy-Item .env.example .env
+#    fill POSTGRES_*, DATABASE_URL, SECRET_KEY in .env
 
----
+# 2. database
+docker compose up -d
+.venv\Scripts\python.exe -m alembic upgrade head    # migrations, never create_all
 
-## 🔧 Variáveis de ambiente
+# 3. API
+.venv\Scripts\python.exe -m uvicorn src.main:app --reload
+# http://localhost:8000/docs
+```
 
-| Variável | Default | Descrição |
-|----------|---------|-----------|
-| `APP_NAME` | `PyBank` | Nome da aplicação |
-| `API_V1_STR` | `/api/v1` | Prefixo das rotas v1 |
-| `POSTGRES_USER` | *(obrigatório)* | Usuário do Postgres (docker-compose lê do `.env`) |
-| `POSTGRES_PASSWORD` | *(obrigatório)* | Senha do Postgres — só no `.env`, nunca hardcoded |
-| `POSTGRES_DB` | *(obrigatório)* | Nome do banco |
-| `DATABASE_URL` | *(obrigatório)* | URL asyncpg completa |
-| `SECRET_KEY` | *(obrigatória)* | Chave JWT — fail-fast se ausente ou `changeme` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Validade do access token |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Validade do refresh token |
-| `RATE_LIMIT_TIMES` | `100` | Requests permitidos por janela |
-| `RATE_LIMIT_SECONDS` | `60` | Janela do rate limit (s) |
-| `CORS_ORIGINS` | `["http://localhost:8000"]` | Origens CORS (JSON list) |
+Migrations are always explicit (`alembic upgrade head`) — never `create_all` (synchronous, breaks with asyncpg). CI applies migrations by script; schema correctness is validated by integration tests.
 
----
+### Postman
 
-## 🧱 Módulos (roadmap)
+Collection with centralized variables — set `baseUrl`, `apiEmail`, `apiSenha` once; `Login` auto-fills `accessToken`/`refreshToken`; protected endpoints use `Bearer {{accessToken}}`.
 
-| # | Branch | Foco | Status |
-|---|--------|------|--------|
-| 0 | `feature/setup` | Fundação, venv, config, logs JSON + correlation ID | ✅ |
-| 1 | `feature/models` | Modelos SQLAlchemy + schemas + fixtures | ✅ |
-| 2 | `feature/db` | Postgres docker-compose + Alembic + migração inicial | ✅ |
-| 3 | `feature/auth` | JWT + refresh token + register/login | ✅ |
-| 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ✅ |
-| 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ✅ |
-| 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ✅ |
-| 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ✅ |
-| 8 | `feature/statement` | Extrato e consultas | ✅ |
-| 9 | `feature/rate-limit` | Rate limiting | ✅ |
-| 10 | `feature/api` | REST /api/v1 completo + error handlers | ✅ |
-| 11 | `feature/coverage` | Cobertura de testes ≥90% | ⏳ |
-| 12 | `feature/ci` | GitHub Actions | ⏳ |
-| 13 | `feature/docs` | README EN/PT | ⏳ |
-| 14 | `feature/deploy` | Deploy | ⏳ |
+- [Download release asset](https://github.com/EnzoVieira3012/PyBank/releases/download/v0.4/PyBank.postman_collection.json)
+- [Raw collection](https://raw.githubusercontent.com/EnzoVieira3012/PyBank/develop/docs/postman/PyBank.postman_collection.json)
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `PyBank` | App name |
+| `API_V1_STR` | `/api/v1` | API prefix |
+| `POSTGRES_USER` | *required* | Postgres user (`docker-compose` reads `.env`) |
+| `POSTGRES_PASSWORD` | *required* | Postgres password — `.env` only, never hardcoded |
+| `POSTGRES_DB` | *required* | Database name |
+| `DATABASE_URL` | *required* | Full asyncpg URL |
+| `SECRET_KEY` | *required* | JWT key — fail-fast if missing or `changeme` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token TTL |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token TTL |
+| `RATE_LIMIT_LOGIN` | `10` | Login attempts per IP per 60s window |
+| `RATE_LIMIT_MUTATIONS` | `100` | Mutations per user per 60s window |
+| `CORS_ORIGINS` | `["http://localhost:8000"]` | Allowed origins (JSON list) |
 
 ---
 
-## 🌿 Regras de git
+## Key mechanisms
 
-1. Linha principal de trabalho: branch `develop`.
-2. Cada módulo = uma branch `feature/<nome>` criada a partir de `develop`.
-3. `main` só recebe merge de `develop`, no final do projeto.
-4. Commits no padrão Conventional Commits, em português:
-   - `feat(scope): mensagem`
-   - `fix(scope): mensagem`
-   - `docs(scope): mensagem`
-   - `test(scope): mensagem`
-5. **Nunca mergear**: a IA faz push da branch e o usuário abre o PR e faz o merge na `develop`.
-6. Working tree sempre limpa (nada de arquivos temporários).
-7. Nunca commitar: `.env`, segredos, `__pycache__`, bancos, venv.
-8. Rodar Python sempre com `python -m ...`.
-9. CI verde desde o primeiro push.
+- **Idempotency**: `Idempotency-Key` header required on all mutating POSTs (missing → 400). Same key + same body → stored byte-identical replay. Same key + different body → 409. The key row commits or rolls back **with** the operation — a failed op frees the key for retry.
+- **Atomic money movement**: deposit/withdraw use single `UPDATE ... RETURNING` — no read-modify-write, no race window. Transfers lock both accounts in one query (`FOR UPDATE ORDER BY id`), write 2 `Transaction` rows + debit + credit in one commit, roll back everything on any error.
+- **Auth**: JWT access (30 min, HS256) + rotating refresh token (7 days, hashed at rest, `UNIQUE token_hash`). Logout revokes; refresh rotation reuses the old token — reuse after rotation → 401.
+- **Audit**: every mutation writes `audit_logs` with `before`/`after` JSON, client IP, and the request `correlation_id` — compliance trace without extra infra.
 
----
+## Project structure
 
-## 📜 Licença
+```
+src/
+  main.py            # app factory, error envelope, health check
+  config.py          # env settings (fail-fast on SECRET_KEY)
+  middleware.py      # correlation_id, security headers
+  rate_limit.py      # in-memory sliding window (no Redis, no slowapi)
+  controllers/       # HTTP layer: auth, accounts, transfers, statements
+  services/          # business rules: transfers, statements, idempotency, audit
+  models/            # SQLAlchemy models (UUID + timestamp mixins)
+  schemas/           # Pydantic v2 schemas
+tests/
+  integration/       # failure matrix, race ×100, idempotency, rate limits
+```
 
-Este projeto está licenciado sob a [MIT License](LICENSE).
+## License & contact
 
----
+[MIT](LICENSE) · Enzo Vieira — [LinkedIn](https://www.linkedin.com/in/enzovieiratrabalho/) · [GitHub](https://github.com/EnzoVieira3012) · [Email](mailto:enzovieira.trabalho@outlook.com)
 
-## 📬 Contato
-
-**Enzo Vieira**
-
-- **LinkedIn**: [enzovieiratrabalho](https://www.linkedin.com/in/enzovieiratrabalho/)
-- **GitHub**: [EnzoVieira3012](https://github.com/EnzoVieira3012)
-- **Email**: [enzovieira.trabalho@outlook.com](mailto:enzovieira.trabalho@outlook.com)
-
-*Projeto portfolio — Formação Python Backend Developer DIO*
+*Portfolio project — Python Backend Developer (DIO)*
