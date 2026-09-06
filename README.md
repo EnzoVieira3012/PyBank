@@ -190,6 +190,21 @@ Sem endpoint público de auditoria — dado é interno, para risco/compliance.
 
 ---
 
+## 🔁 Idempotência
+
+Header **`Idempotency-Key`** obrigatório nos métodos mutáveis (`deposits`, `withdrawals`, `transfers`) — falta → 400. Retry não duplica:
+
+- **Replay**: mesma key + mesmo body → mesma resposta gravada (status e JSON idênticos), nada re-executa.
+- **Conflito**: mesma key com body diferente → 409 `idempotency key reuse with different payload`.
+- **Corrida**: 2 requests simultâneos com mesma key → `UNIQUE(user_id, key)` resolve atomicamente (`INSERT ... ON CONFLICT DO NOTHING`): exatamente 1 executa, o outro → 409 `request in progress` (ou replay quando o 1º concluir).
+- **Fingerprint**: `sha256` do **body cru** (bytes exatos recebidos) — nunca re-canonicalizado, senão whitespace/ordem de campos viraria falso 409.
+- **TTL**: chave expira em 24h (`expires_at`) — expirada volta a aceitar claim como novo.
+- **Rollback junto**: operação que falha dá rollback da chave também — retry executa limpo.
+
+Decisão de arquitetura: tabela Postgres com `UNIQUE(user_id, key)` resolve a corrida com constraint atômica — sem dependência externa. Redis (ou similar) só faria sentido com escala horizontal multi-instância (trade-off revisitado em deploy — módulo 13).
+
+---
+
 ## 🗄️ Modelos (schema)
 
 | Tabela | Campos principais | Constraints |
@@ -235,7 +250,7 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ✅ |
 | 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ✅ |
 | 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ✅ |
-| 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ⏳ |
+| 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ✅ |
 | 8 | `feature/statement` | Extrato e consultas | ⏳ |
 | 9 | `feature/rate-limit` | Rate limiting | ⏳ |
 | 10 | `feature/api` | REST /api/v1 completo + error handlers | ⏳ |

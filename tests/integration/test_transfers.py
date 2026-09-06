@@ -1,6 +1,6 @@
 import asyncio
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
@@ -38,7 +38,7 @@ async def _create_account(client, token: str) -> str:
 async def _deposit(client, token: str, account_id: str, amount: str) -> None:
     resp = await client.post(
         f"/api/v1/accounts/{account_id}/deposits",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": str(uuid4())},
         json={"amount": amount},
     )
     assert resp.status_code == 201, resp.text
@@ -55,7 +55,7 @@ async def test_transfer_ok(client, db_session) -> None:
 
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc_a, "to_account_id": acc_b, "amount": "40.00"},
     )
     assert resp.status_code == 201, resp.text
@@ -91,7 +91,7 @@ async def test_transfer_same_account_409(client, db_session) -> None:
 
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc, "to_account_id": acc, "amount": "10.00"},
     )
     assert resp.status_code == 409
@@ -112,7 +112,7 @@ async def test_transfer_insufficient_rollback(client, db_session) -> None:
 
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc_a, "to_account_id": acc_b, "amount": "50.00"},
     )
     assert resp.status_code == 409
@@ -141,7 +141,7 @@ async def test_transfer_destino_inexistente_404_rollback(client, db_session) -> 
 
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc_a, "to_account_id": fantasma, "amount": "50.00"},
     )
     assert resp.status_code == 404
@@ -162,7 +162,7 @@ async def test_transfer_origem_de_outro_user_404(client, db_session) -> None:
     # B tenta transferir da conta de A
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token_b}"},
+        headers={"Authorization": f"Bearer {token_b}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc_a, "to_account_id": acc_b, "amount": "10.00"},
     )
     assert resp.status_code == 404

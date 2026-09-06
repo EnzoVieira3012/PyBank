@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from sqlalchemy import func, select
 
@@ -68,6 +70,7 @@ async def test_deposit_audit_before_after(client, db_session) -> None:
         headers={
             "Authorization": f"Bearer {token}",
             "X-Request-ID": CORRELATION,
+            "Idempotency-Key": str(uuid4()),
         },
         json={"amount": "100.00"},
     )
@@ -89,7 +92,7 @@ async def test_withdraw_audit_before_after(client, db_session) -> None:
     acc = await _create_account(client, token)
     await client.post(
         f"/api/v1/accounts/{acc}/deposits",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": str(uuid4())},
         json={"amount": "100.00"},
     )
 
@@ -98,6 +101,7 @@ async def test_withdraw_audit_before_after(client, db_session) -> None:
         headers={
             "Authorization": f"Bearer {token}",
             "X-Request-ID": CORRELATION,
+            "Idempotency-Key": str(uuid4()),
         },
         json={"amount": "25.00"},
     )
@@ -119,7 +123,7 @@ async def test_transfer_audit_duas_contas(client, db_session) -> None:
     acc_b = await _create_account(client, token_b)
     await client.post(
         f"/api/v1/accounts/{acc_a}/deposits",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"amount": "200.00"},
     )
 
@@ -128,6 +132,7 @@ async def test_transfer_audit_duas_contas(client, db_session) -> None:
         headers={
             "Authorization": f"Bearer {token_a}",
             "X-Request-ID": CORRELATION,
+            "Idempotency-Key": str(uuid4()),
         },
         json={"from_account_id": acc_a, "to_account_id": acc_b, "amount": "80.00"},
     )
@@ -152,13 +157,13 @@ async def test_transfer_fracassada_sem_log_orfao(client, db_session) -> None:
     # A deposita 10, tenta transferir 50 -> 409 (saldo insuficiente)
     await client.post(
         f"/api/v1/accounts/{acc_a}/deposits",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"amount": "10.00"},
     )
 
     resp = await client.post(
         "/api/v1/transfers",
-        headers={"Authorization": f"Bearer {token_a}"},
+        headers={"Authorization": f"Bearer {token_a}", "Idempotency-Key": str(uuid4())},
         json={"from_account_id": acc_a, "to_account_id": acc_b, "amount": "50.00"},
     )
     assert resp.status_code == 409
