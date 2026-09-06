@@ -65,6 +65,7 @@ async def depositar(
         correlation_id=correlation_id,
     )
     account = await session.get(Account, account_id)
+    assert account is not None  # caller ja validou owner
     await session.refresh(account)
     return account
 
@@ -112,5 +113,6 @@ async def sacar(
         correlation_id=correlation_id,
     )
     account = await session.get(Account, account_id)
+    assert account is not None  # caller ja validou owner
     await session.refresh(account)
     return account
