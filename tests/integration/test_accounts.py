@@ -1,5 +1,6 @@
 import asyncio
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
@@ -18,7 +19,10 @@ async def _login(client, email: str = "ops@example.com"):
 
 
 async def _auth_header(token: str):
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "Idempotency-Key": str(uuid4()),  # mutaveis exigem key; chave unica por request
+    }
 
 
 async def _criar_conta(client, token):
