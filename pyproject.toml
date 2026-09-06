@@ -16,7 +16,12 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+# Cobertura minima enforced no CI (--cov-fail-under=90). Dev roda pytest -q.
+addopts = "--cov=src --cov-fail-under=90"
 
 [tool.mypy]
 python_version = "3.13"
 ignore_missing_imports = true
+no_implicit_optional = true
+warn_unused_ignores = true
+exclude = ["alembic/.*", "tests/.*", "scripts/.*"]
