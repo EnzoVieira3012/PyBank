@@ -17,4 +17,6 @@ ruff>=0.6
 mypy>=1.11
 pytest>=8
 pytest-asyncio>=0.24
-pytest-cov>=5
+# coverage 8 mudou contagem de stmts (branch default) -> medir igual em dev e CI
+pytest-cov>=5,<8
+coverage>=7.5,<8
