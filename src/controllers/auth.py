@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.config import settings
+from src.database import get_session
+from src.deps import get_current_user
+from src.models.refresh_token import RefreshToken
+from src.models.user import User
+from src.schemas.auth import LoginIn, RefreshIn, TokenOut
+from src.schemas.user import UserCreate, UserOut
+from src.security import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_refresh_token,
+    verify_password,
+)
+
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+INVALID_CREDENTIALS = "invalid credentials"
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def _issue_token_pair(session: AsyncSession, user: User) -> TokenOut:
+    refresh_token = create_refresh_token(user.id)
+    session.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=hash_refresh_token(refresh_token),
+            expires_at=datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    return TokenOut(
+        access_token=create_access_token(user.id),
+        refresh_token=refresh_token,
+    )
+
+
+async def _get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    return await session.scalar(select(User).where(User.email == email.lower()))
+
+
+@router.post("/register", response_model=UserOut, status_code=201)
+async def register(
+    payload: UserCreate,
+    session: SessionDep,
+) -> User:
+    if await _get_user_by_email(session, payload.email) is not None:
+        raise HTTPException(status_code=409, detail="email already registered")
+    user = User(email=payload.email.lower(), password_hash=hash_password(payload.password))
+    session.add(user)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # Corrida: e-mail criado entre a checagem e o flush
+        raise HTTPException(status_code=409, detail="email already registered") from exc
+    return user
+
+
+@router.post("/login", response_model=TokenOut)
+async def login(
+    payload: LoginIn,
+    session: SessionDep,
+) -> TokenOut:
+    user = await _get_user_by_email(session, payload.email)
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
+    return await _issue_token_pair(session, user)
+
+
+@router.post("/refresh", response_model=TokenOut)
+async def refresh(
+    req: RefreshIn,
+    session: SessionDep,
+) -> TokenOut:
+    stored = await session.scalar(
+        select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(req.refresh_token))
+    )
+    if stored is None or stored.revoked:
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
+    user = await session.get(User, stored.user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
+
+    stored.revoked = True  # rotacao: token usado morre no banco
+    return await _issue_token_pair(session, user)
+
+
+@router.post("/logout", status_code=204)
+async def logout(
+    req: RefreshIn,
+    user: CurrentUser,
+    session: SessionDep,
+) -> Response:
+    stored = await session.scalar(
+        select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(req.refresh_token))
+    )
+    if stored is not None and stored.user_id == user.id:
+        stored.revoked = True
+    return Response(status_code=204)

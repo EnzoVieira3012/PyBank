@@ -1,14 +1,17 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from src.config import settings
+from src.controllers import auth, me
 from src.database import engine
 from src.logging_setup import setup_logging
 from src.middleware import RequestContextMiddleware
+from src.security import CredentialsError
 
 logger = logging.getLogger("pybank")
 
@@ -42,6 +45,15 @@ app.add_middleware(
     allow_credentials=True,
 )
 app.add_middleware(RequestContextMiddleware)
+
+
+@app.exception_handler(CredentialsError)
+async def credentials_error_handler(request: Request, exc: CredentialsError) -> JSONResponse:
+    return JSONResponse(status_code=401, content={"detail": "invalid credentials"})
+
+
+app.include_router(auth.router)
+app.include_router(me.router)
 
 
 @app.get("/health")
