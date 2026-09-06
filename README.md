@@ -205,6 +205,42 @@ Decisão de arquitetura: tabela Postgres com `UNIQUE(user_id, key)` resolve a co
 
 ---
 
+## 🛡️ Rate limiting
+
+Limites por janela de 60s, in-memory (sem Redis, sem `slowapi`):
+
+| Escopo | Limite | Endpoints | Chave |
+|--------|--------|-----------|-------|
+| Login | `10/min` (configurável) | `POST /auth/login`, `POST /auth/refresh` | IP do cliente |
+| Mutações | `100/min` (configurável) | `POST /accounts/{id}/deposits`, `/withdrawals`, `/transfers` | `user_id` autenticado |
+
+Por que IP no login e `user_id` nas mutações: protege contra brute-force de credencial sem punir múltiplos usuários atrás do mesmo NAT. Mutações vão por usuário para não derrubar clientes legítimos que compartilham IP corporativo.
+
+Resposta quando excede (HTTP 429):
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+Content-Type: application/json
+
+{"detail": "rate limit exceeded"}
+```
+
+`Retry-After` informa quantos segundos esperar até a janela liberar.
+
+Headers de segurança já vêm do `RequestContextMiddleware` (presentes em toda resposta): `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`.
+
+Configuração via env (`.env`/`.env.example`):
+
+```env
+RATE_LIMIT_LOGIN=10
+RATE_LIMIT_MUTATIONS=100
+```
+
+Quando migrar para mais de 1 instância, trocar os `RateLimiter` in-memory por Redis (mesma interface `allow/clear`); `ponytail:` documentado em `src/rate_limit.py`.
+
+---
+
 ## 📄 Extrato paginado
 
 `GET /api/v1/accounts/{account_id}/statement` — lançamentos da conta, paginados e filtráveis. Acesso restrito ao dono da conta (outro usuário → 404).
@@ -285,8 +321,8 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ✅ |
 | 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ✅ |
 | 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ✅ |
-| 8 | `feature/statement` | Extrato e consultas | ⏳ |
-| 9 | `feature/rate-limit` | Rate limiting | ⏳ |
+| 8 | `feature/statement` | Extrato e consultas | ✅ |
+| 9 | `feature/rate-limit` | Rate limiting | ✅ |
 | 10 | `feature/api` | REST /api/v1 completo + error handlers | ⏳ |
 | 11 | `feature/coverage` | Cobertura de testes ≥90% | ⏳ |
 | 12 | `feature/ci` | GitHub Actions | ⏳ |

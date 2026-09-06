@@ -113,7 +113,22 @@
                 "auth",
                 "login"
               ]
-            }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 429) {",
+                    "    pm.test('429 com Retry-After', function () {",
+                    "        pm.expect(pm.response.headers.get('Retry-After')).to.exist;",
+                    "    });",
+                    "}"
+                  ]
+                }
+              }
+            ]
           },
           "event": [
             {
