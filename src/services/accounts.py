@@ -11,6 +11,7 @@ from src.models.account import Account
 from src.models.transaction import Transaction
 from src.models.user import User
 from src.schemas.enums import TransactionType
+from src.services.audit import registrar
 
 
 async def criar_conta(session: AsyncSession, user: User) -> Account:
@@ -33,19 +34,36 @@ async def depositar(
     account_id: uuid.UUID,
     amount: Decimal,
     user: User,
+    ip: str | None = None,
+    correlation_id: str | None = None,
 ) -> Account:
     """Atomic UPDATE: balance = balance + amount — nunca read-modify-write."""
-    result = await session.execute(
-        update(Account)
-        .where(Account.id == account_id, Account.user_id == user.id)
-        .values(balance=Account.balance + amount)
-        .returning(Account.balance)
+    bal_before = await session.scalar(
+        select(Account.balance).where(Account.id == account_id, Account.user_id == user.id)
     )
-    if result.first() is None:
+    if bal_before is None:
         raise AccountNotFoundError()
 
+    bal_after = (
+        await session.execute(
+            update(Account)
+            .where(Account.id == account_id, Account.user_id == user.id)
+            .values(balance=Account.balance + amount)
+            .returning(Account.balance)
+        )
+    ).scalar_one()
+
     session.add(Transaction(account_id=account_id, type=TransactionType.DEPOSIT, amount=amount))
-    await session.flush()
+    await registrar(
+        session,
+        action="deposit",
+        user_id=user.id,
+        account_id=account_id,
+        before={"balance": str(bal_before)},
+        after={"balance": str(bal_after)},
+        ip=ip,
+        correlation_id=correlation_id,
+    )
     account = await session.get(Account, account_id)
     await session.refresh(account)
     return account
@@ -56,28 +74,43 @@ async def sacar(
     account_id: uuid.UUID,
     amount: Decimal,
     user: User,
+    ip: str | None = None,
+    correlation_id: str | None = None,
 ) -> Account:
     """Atomic UPDATE com guarda de saldo: balance >= amount — CheckConstraint e backstop."""
-    result = await session.execute(
-        update(Account)
-        .where(
-            Account.id == account_id,
-            Account.user_id == user.id,
-            Account.balance >= amount,
-        )
-        .values(balance=Account.balance - amount)
-        .returning(Account.balance)
+    bal_before = await session.scalar(
+        select(Account.balance).where(Account.id == account_id, Account.user_id == user.id)
     )
-    if result.first() is None:
-        exists = await session.scalar(
-            select(Account.id).where(Account.id == account_id, Account.user_id == user.id)
+    if bal_before is None:
+        raise AccountNotFoundError()
+
+    row = (
+        await session.execute(
+            update(Account)
+            .where(
+                Account.id == account_id,
+                Account.user_id == user.id,
+                Account.balance >= amount,
+            )
+            .values(balance=Account.balance - amount)
+            .returning(Account.balance)
         )
-        if exists is None:
-            raise AccountNotFoundError()
+    ).first()
+    if row is None:
         raise BusinessError("insufficient balance")
+    bal_after = row[0]
 
     session.add(Transaction(account_id=account_id, type=TransactionType.WITHDRAW, amount=amount))
-    await session.flush()
+    await registrar(
+        session,
+        action="withdraw",
+        user_id=user.id,
+        account_id=account_id,
+        before={"balance": str(bal_before)},
+        after={"balance": str(bal_after)},
+        ip=ip,
+        correlation_id=correlation_id,
+    )
     account = await session.get(Account, account_id)
     await session.refresh(account)
     return account

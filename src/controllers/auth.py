@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import settings
 from src.database import get_session
-from src.deps import get_current_user
+from src.deps import client_ip, correlation_id, get_current_user
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
 from src.schemas.auth import LoginIn, RefreshIn, TokenOut
@@ -22,6 +22,7 @@ from src.security import (
     hash_refresh_token,
     verify_password,
 )
+from src.services.audit import registrar
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -54,6 +55,7 @@ async def _get_user_by_email(session: AsyncSession, email: str) -> User | None:
 async def register(
     payload: UserCreate,
     session: SessionDep,
+    request: Request,
 ) -> User:
     if await _get_user_by_email(session, payload.email) is not None:
         raise HTTPException(status_code=409, detail="email already registered")
@@ -64,6 +66,13 @@ async def register(
     except IntegrityError as exc:
         # Corrida: e-mail criado entre a checagem e o flush
         raise HTTPException(status_code=409, detail="email already registered") from exc
+    await registrar(
+        session,
+        action="register",
+        user_id=user.id,
+        ip=client_ip(request),
+        correlation_id=correlation_id(request),
+    )
     return user
 
 
@@ -71,10 +80,18 @@ async def register(
 async def login(
     payload: LoginIn,
     session: SessionDep,
+    request: Request,
 ) -> TokenOut:
     user = await _get_user_by_email(session, payload.email)
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
+    await registrar(
+        session,
+        action="login",
+        user_id=user.id,
+        ip=client_ip(request),
+        correlation_id=correlation_id(request),
+    )
     return await _issue_token_pair(session, user)
 
 
@@ -82,6 +99,7 @@ async def login(
 async def refresh(
     req: RefreshIn,
     session: SessionDep,
+    request: Request,
 ) -> TokenOut:
     stored = await session.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(req.refresh_token))
@@ -93,6 +111,13 @@ async def refresh(
         raise HTTPException(status_code=401, detail=INVALID_CREDENTIALS)
 
     stored.revoked = True  # rotacao: token usado morre no banco
+    await registrar(
+        session,
+        action="refresh",
+        user_id=user.id,
+        ip=client_ip(request),
+        correlation_id=correlation_id(request),
+    )
     return await _issue_token_pair(session, user)
 
 
@@ -101,10 +126,18 @@ async def logout(
     req: RefreshIn,
     user: CurrentUser,
     session: SessionDep,
+    request: Request,
 ) -> Response:
     stored = await session.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(req.refresh_token))
     )
     if stored is not None and stored.user_id == user.id:
         stored.revoked = True
+    await registrar(
+        session,
+        action="logout",
+        user_id=user.id,
+        ip=client_ip(request),
+        correlation_id=correlation_id(request),
+    )
     return Response(status_code=204)

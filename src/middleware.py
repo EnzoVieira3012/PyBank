@@ -13,6 +13,7 @@ request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        request.state.correlation_id = request_id  # disponivel para auditoria
         token = request_id_var.set(request_id)
         try:
             logger.info(f"{request.method} {request.url.path}", extra={"request_id": request_id})
