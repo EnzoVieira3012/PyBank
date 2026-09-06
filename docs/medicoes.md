@@ -41,3 +41,65 @@ viraria custo dominante).
 - Migração: `a183cc6c2083_indice_composto_account_created_at`
 - Reproduzir: `python scripts/seed.py` → rodar o EXPLAIN com e sem o índice
   (`alembic downgrade -1` / `upgrade head`).
+
+
+# Medições — Corrida x100 (concorrência)
+
+Cenário: `tests/integration/test_failure_matrix.py::test_falha_corrida_100_saques_saldo_invariante`.
+
+- 1 conta com saldo 100.00 (`deposit` inicial).
+- 100 saques concorrentes de 1.00 cada, disparados via `asyncio.gather` +
+  100 `AsyncClient` (cada request com sessão/conexão própria).
+- Invariante: 100 sucessos, saldo final 0.00, total transacionado = saldo inicial.
+- `SELECT FOR UPDATE` garante lock na linha da conta em ordem determinística
+  (`ORDER BY id` na transação). Sem lock haveria oversell (saldo negativo).
+- Teste repete o ciclo 5 vezes (4 reabastecimentos + 100 saques) para
+  confirmar estabilidade.
+
+| Rodada | Saques 201 | Saldo final | Transações gravadas | Tempo |
+|--------|------------|-------------|--------------------|-------|
+| 1      | 100/100    | 0.00        | 100 withdrawals    | < 60s |
+| 2      | 100/100    | 0.00        | +100 withdrawals   | idem |
+| 3      | 100/100    | 0.00        | +100 withdrawals   | idem |
+| 4      | 100/100    | 0.00        | +100 withdrawals   | idem |
+| 5      | 100/100    | 0.00        | +100 withdrawals   | idem |
+
+`RATE_LIMIT_MUTATIONS` é elevado para 1000 só durante o teste (atributo de
+instância do limiter), restaurado pelo `_reset_rate_limiters` autouse no
+`conftest.py` — sem isso o teste vazaria o limite customizado para os vizinhos.
+
+
+# Medições — Cobertura
+
+`pytest --cov=src --cov-report=term-missing`:
+
+| Módulo | Stmts | Miss | Cover |
+|--------|-------|------|-------|
+| `src/config.py` | 16 | 2 | 88% |
+| `src/controllers/accounts.py` | 42 | 1 | 98% |
+| `src/controllers/auth.py` | 64 | 3 | 95% |
+| `src/controllers/deps.py` | 15 | 0 | 100% |
+| `src/controllers/me.py` | 10 | 0 | 100% |
+| `src/controllers/statements.py` | 20 | 0 | 100% |
+| `src/controllers/transfers.py` | 26 | 0 | 100% |
+| `src/database.py` | 13 | 0 | 100% |
+| `src/deps.py` | 29 | 4 | 86% |
+| `src/exceptions.py` | 13 | 0 | 100% |
+| `src/logging_setup.py` | 14 | 0 | 100% |
+| `src/main.py` | 71 | 11 | 85% |
+| `src/middleware.py` | 20 | 0 | 100% |
+| `src/models/*` | 91 | 0 | 100% |
+| `src/rate_limit.py` | 41 | 1 | 98% |
+| `src/schemas/*` | 53 | 0 | 100% |
+| `src/security.py` | 32 | 1 | 97% |
+| `src/services/accounts.py` | 43 | 1 | 98% |
+| `src/services/idempotency.py` | 38 | 4 | 89% |
+| `src/services/statements.py` | 28 | 0 | 100% |
+| `src/services/transfers.py` | 47 | 0 | 100% |
+| `src/services/audit.py` | 18 | 0 | 100% |
+| `src/services/auth.py` | 32 | 0 | 100% |
+| **TOTAL** | **745** | **28** | **96%** |
+
+Meta: ≥ 90% — cumprida. Linhas faltantes residem em: validação de SECRET_KEY
+no startup, `OPTIONS` no CORS, branch de expiração de Idempotency-Key
+(reset de TTL) e import-time branches (TYPE_CHECKING).

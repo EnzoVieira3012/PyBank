@@ -334,6 +334,46 @@ Performance: índice composto `(account_id, created_at DESC)` mantém leitura po
 
 ---
 
+## 🧪 Cobertura e testes de falha
+
+Cobrem o que recrutadores pedem: duplicação, corrida e saldo insuficiente.
+
+### 3 cenários canônicos de falha (`tests/integration/test_failure_matrix.py`)
+
+| Cenário | Como exercita | Invariante |
+|---------|---------------|------------|
+| **Duplicado** | mesmo `Idempotency-Key` em 2 POSTs idênticos | 1 só efeito, 2 respostas byte-idênticas |
+| **Corrida** | 100 saques concorrentes de 1.00 vs saldo 100.00 (5 ciclos) | 100 sucessos por rodada, saldo final 0.00, 0 oversell |
+| **Saldo insuficiente** | saque/transfer acima do saldo | 409 + 0 transactions + 0 audit_logs gravados |
+
+A corrida usa `asyncio.gather` + 100 `AsyncClient` (cada request com sessão
+própria) exercitando o `SELECT FOR UPDATE ORDER BY id` — sem lock haveria
+oversell. Detalhes em `docs/medicoes.md` (seção "Corrida x100").
+
+### Cobertura
+
+`pytest --cov=src --cov-report=term-missing` → **96%** (meta ≥ 90%).
+
+Mapa por módulo: `docs/medicoes.md` (seção "Cobertura"). 5 testes de
+`test_coverage_gaps.py` exercitam o que o fluxo normal não cobre (JSON
+formatter, schemas pequenos, setup_logging).
+
+### Comandos
+
+```powershell
+# suite completa
+.venv\Scripts\python.exe -m pytest -q
+
+# com cobertura
+.venv\Scripts\python.exe -m pytest --cov=src --cov-report=term-missing
+
+# linter + format
+.venv\Scripts\python.exe -m ruff check .
+.venv\Scripts\python.exe -m ruff format --check .
+```
+
+---
+
 ## 🗄️ Modelos (schema)
 
 | Tabela | Campos principais | Constraints |
