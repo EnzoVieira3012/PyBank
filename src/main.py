@@ -138,7 +138,12 @@ def create_app(cfg: Settings | None = None) -> FastAPI:
     app.include_router(api_router)
 
     # --- health: ping no banco via session; 503 se DB fora ---
-    @app.get("/health", tags=["health"], summary="Health check com ping no DB")
+    @app.api_route(
+        "/health",
+        methods=["GET", "HEAD"],
+        tags=["health"],
+        summary="Health check com ping no DB",
+    )
     async def health() -> JSONResponse:
         try:
             async with async_session() as session:

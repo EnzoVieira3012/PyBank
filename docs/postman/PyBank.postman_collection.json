@@ -266,10 +266,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{accessToken}}"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "{{}}"
               }
             ],
             "url": {
