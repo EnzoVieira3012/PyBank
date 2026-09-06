@@ -10,6 +10,7 @@ from src.database import get_session
 from src.deps import client_ip, correlation_id, get_current_user
 from src.models.transaction import Transaction
 from src.models.user import User
+from src.rate_limit import limite_mutacao
 from src.schemas.transfer import TransferIn, TransferOut
 from src.services import idempotency as idempotency_service
 from src.services import transfers as transfers_service
@@ -21,7 +22,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 IdempotencyDep = Annotated[IdempotencyContext, Depends(require_idempotency_key)]
 
 
-@router.post("/transfers", status_code=201)
+@router.post("/transfers", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Transferir entre contas (limite por usuario)")
 async def transfer(
     payload: TransferIn,
     user: CurrentUser,

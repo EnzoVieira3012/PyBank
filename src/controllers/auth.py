@@ -13,6 +13,7 @@ from src.database import get_session
 from src.deps import client_ip, correlation_id, get_current_user
 from src.models.refresh_token import RefreshToken
 from src.models.user import User
+from src.rate_limit import limite_login
 from src.schemas.auth import LoginIn, RefreshIn, TokenOut
 from src.schemas.user import UserCreate, UserOut
 from src.security import (
@@ -76,7 +77,7 @@ async def register(
     return user
 
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=TokenOut, dependencies=[Depends(limite_login)], summary="Autenticar (limite por IP)")
 async def login(
     payload: LoginIn,
     session: SessionDep,
@@ -95,7 +96,7 @@ async def login(
     return await _issue_token_pair(session, user)
 
 
-@router.post("/refresh", response_model=TokenOut)
+@router.post("/refresh", response_model=TokenOut, dependencies=[Depends(limite_login)], summary="Renovar tokens (limite por IP)")
 async def refresh(
     req: RefreshIn,
     session: SessionDep,

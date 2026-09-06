@@ -105,3 +105,16 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """Suite compartilha mesmo IP no httpx.AsyncClient; sem reset, o
+    login_limiter esgota em 10 tentativas e derruba todos os outros testes."""
+    from src.rate_limit import login_limiter, mutation_limiter
+
+    login_limiter.clear()
+    mutation_limiter.clear()
+    yield
+    login_limiter.clear()
+    mutation_limiter.clear()
