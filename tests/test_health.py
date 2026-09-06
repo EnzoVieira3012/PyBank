@@ -11,6 +11,11 @@ async def test_health_returns_ok(client) -> None:
     assert response.json() == {"status": "ok", "database": "ok"}
 
 
+async def test_health_supports_head(client) -> None:
+    response = await client.head("/health")
+    assert response.status_code == 200
+
+
 async def test_health_headers_present(client) -> None:
     response = await client.get("/health")
     assert response.headers["X-Request-ID"]
