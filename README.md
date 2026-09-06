@@ -160,6 +160,22 @@ Depósito e saque usam UPDATE atômico com `RETURNING` — sem read-modify-write
 
 ---
 
+## 💸 Transferência
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `POST /api/v1/transfers` | `{from_account_id, to_account_id, amount}` → 201 com id da transferência |
+
+Regras de execução (atômicas, um único commit):
+
+- **Lock em ordem fixa**: uma query só — `SELECT ... FOR UPDATE ... ORDER BY id` nas duas contas. Transferências cruzadas (A→B e B→A) serializam na mesma ordem → deadlock impossível.
+- **Rollback único**: débito da origem + crédito do destino + 2 registros `Transaction` (`type=transfer`, `counterpart_account_id` preenchido nos dois lados) — tudo no mesmo commit. Qualquer erro (saldo insuficiente, conta inexistente) → rollback total, nenhum lado muda.
+- Validações: mesma conta → 409; conta origem de outro usuário ou inexistente → 404; saldo insuficiente → 409.
+- Garantia final no banco: `CHECK (balance >= 0)` como backstop.
+- Teste de corrida: 100 transferências paralelas (50 A→B + 50 B→A) com saldo total invariante — nada se perde.
+
+---
+
 ## 🗄️ Modelos (schema)
 
 | Tabela | Campos principais | Constraints |
@@ -203,7 +219,7 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 2 | `feature/db` | Postgres docker-compose + Alembic + migração inicial | ✅ |
 | 3 | `feature/auth` | JWT + refresh token + register/login | ✅ |
 | 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ✅ |
-| 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ⏳ |
+| 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ✅ |
 | 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ⏳ |
 | 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ⏳ |
 | 8 | `feature/statement` | Extrato e consultas | ⏳ |

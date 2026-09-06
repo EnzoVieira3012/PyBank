@@ -29,6 +29,10 @@
     {
       "key": "accountId",
       "value": ""
+    },
+    {
+      "key": "toAccountId",
+      "value": ""
     }
   ],
   "item": [
@@ -347,6 +351,42 @@
                 "accounts",
                 "{{accountId}}",
                 "withdrawals"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "Transferir",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_account_id\": \"{{accountId}}\",\n  \"to_account_id\": \"{{toAccountId}}\",\n  \"amount\": 25.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfers"
               ]
             }
           }
