@@ -8,5 +8,5 @@ from src.schemas.transaction import TransactionOut
 
 class StatementOut(BaseModel):
     account_id: UUID
-    transactions: list[TransactionOut]
+    items: list[TransactionOut]
     meta: PageMeta

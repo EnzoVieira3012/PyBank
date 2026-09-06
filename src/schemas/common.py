@@ -8,5 +8,5 @@ class MessageOut(BaseModel):
 class PageMeta(BaseModel):
     page: int
     page_size: int
-    total: int
-    has_more: bool
+    total_items: int
+    total_pages: int
