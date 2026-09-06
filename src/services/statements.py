@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ async def obter_extrato(
     *,
     page: int,
     page_size: int,
-    type: TransactionType | None = None,
+    type_: TransactionType | None = None,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
 ) -> tuple[Sequence[Transaction], PageMeta]:
@@ -33,24 +33,20 @@ async def obter_extrato(
     Sem o indice composto (account_id, created_at) viraria full scan —
     medido em docs/medicoes.md."""
     conta = await session.scalar(
-        select(Account.id).where(
-            Account.id == account_id, Account.user_id == user.id
-        )
+        select(Account.id).where(Account.id == account_id, Account.user_id == user.id)
     )
     if conta is None:
         raise AccountNotFoundError()
 
     where = [Transaction.account_id == account_id]
-    if type is not None:
-        where.append(Transaction.type == type)
+    if type_ is not None:
+        where.append(Transaction.type == type_)
     if from_date is not None:
         where.append(Transaction.created_at >= from_date)
     if to_date is not None:
         where.append(Transaction.created_at <= to_date)
 
-    total = await session.scalar(
-        select(func.count()).select_from(Transaction).where(*where)
-    )
+    total = await session.scalar(select(func.count()).select_from(Transaction).where(*where))
     total_pages = math.ceil(total / page_size) if total else 0
 
     itens = (
@@ -63,7 +59,5 @@ async def obter_extrato(
         )
     ).all()
 
-    meta = PageMeta(
-        page=page, page_size=page_size, total_items=total, total_pages=total_pages
-    )
+    meta = PageMeta(page=page, page_size=page_size, total_items=total or 0, total_pages=total_pages)
     return itens, meta

@@ -65,7 +65,13 @@ def test_json_formatter_com_request_id() -> None:
 
 def test_json_formatter_sem_request_id() -> None:
     record = logging.LogRecord(
-        name="pybank", level=logging.WARNING, pathname="x.py", lineno=1, msg="sem", args=(), exc_info=None
+        name="pybank",
+        level=logging.WARNING,
+        pathname="x.py",
+        lineno=1,
+        msg="sem",
+        args=(),
+        exc_info=None,
     )
     payload = JsonFormatter().format(record)
     assert "request_id" not in payload

@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict, deque
-from typing import Callable
+from collections.abc import Callable
+from typing import Annotated
 
 from fastapi import Depends, Request
 
@@ -66,10 +67,11 @@ mutation_limiter = RateLimiter(lambda: settings.RATE_LIMIT_MUTATIONS)
 
 async def limite_login(request: Request) -> None:
     """Por IP em /auth/login e /auth/refresh: protege contra brute-force."""
-    _check(login_limiter, f"ip:{request.client.host}")
+    host = request.client.host if request.client else "unknown"
+    _check(login_limiter, f"ip:{host}")
 
 
-async def limite_mutacao(user: User = Depends(get_current_user)) -> None:
+async def limite_mutacao(user: Annotated[User, Depends(get_current_user)]) -> None:
     """Por usuario em deposits/withdrawals/transfers: nunca por IP, para nao
     derrubar quem compartilha NAT."""
     _check(mutation_limiter, f"user:{user.id}")

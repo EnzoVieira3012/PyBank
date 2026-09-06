@@ -77,7 +77,12 @@ async def register(
     return user
 
 
-@router.post("/login", response_model=TokenOut, dependencies=[Depends(limite_login)], summary="Autenticar (limite por IP)")
+@router.post(
+    "/login",
+    response_model=TokenOut,
+    dependencies=[Depends(limite_login)],
+    summary="Autenticar (limite por IP)",
+)
 async def login(
     payload: LoginIn,
     session: SessionDep,
@@ -96,7 +101,12 @@ async def login(
     return await _issue_token_pair(session, user)
 
 
-@router.post("/refresh", response_model=TokenOut, dependencies=[Depends(limite_login)], summary="Renovar tokens (limite por IP)")
+@router.post(
+    "/refresh",
+    response_model=TokenOut,
+    dependencies=[Depends(limite_login)],
+    summary="Renovar tokens (limite por IP)",
+)
 async def refresh(
     req: RefreshIn,
     session: SessionDep,

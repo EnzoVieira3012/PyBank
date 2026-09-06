@@ -17,7 +17,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import Settings, settings
 from src.controllers import accounts, auth, me, statements, transfers
@@ -146,7 +145,7 @@ def create_app(cfg: Settings | None = None) -> FastAPI:
     @app.get("/health", tags=["health"], summary="Health check com ping no DB")
     async def health() -> JSONResponse:
         try:
-            async with async_session() as session:  # type: AsyncSession
+            async with async_session() as session:
                 await session.execute(text("SELECT 1"))
         except Exception as exc:  # noqa: BLE001 - queremos 503 explicito
             logger.warning("health: banco indisponivel: %s", exc)

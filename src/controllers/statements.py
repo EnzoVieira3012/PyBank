@@ -38,7 +38,7 @@ async def statement(
         user,
         page=page,
         page_size=page_size,
-        type=type,
+        type_=type,
         from_date=from_date,
         to_date=to_date,
     )

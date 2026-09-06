@@ -33,7 +33,12 @@ async def list_accounts(user: CurrentUser, session: SessionDep) -> list[Account]
     return await accounts_service.listar_contas(session, user)
 
 
-@router.post("/accounts/{account_id}/deposits", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Depositar (limite por usuario)")
+@router.post(
+    "/accounts/{account_id}/deposits",
+    status_code=201,
+    dependencies=[Depends(limite_mutacao)],
+    summary="Depositar (limite por usuario)",
+)
 async def deposit(
     account_id: uuid.UUID,
     payload: AmountIn,
@@ -62,7 +67,12 @@ async def deposit(
     return Response(content=body, status_code=201, media_type="application/json")
 
 
-@router.post("/accounts/{account_id}/withdrawals", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Sacar (limite por usuario)")
+@router.post(
+    "/accounts/{account_id}/withdrawals",
+    status_code=201,
+    dependencies=[Depends(limite_mutacao)],
+    summary="Sacar (limite por usuario)",
+)
 async def withdraw(
     account_id: uuid.UUID,
     payload: AmountIn,
