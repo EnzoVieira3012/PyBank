@@ -111,8 +111,9 @@ mypy src
 
 Collection pronta com **variáveis centralizadas** — configure uma vez, use em tudo:
 
-1. Coleção: [PyBank.postman_collection.json](https://raw.githubusercontent.com/EnzoVieira3012/PyBank/develop/docs/postman/PyBank.postman_collection.json) — a URL abre o JSON no navegador; no Postman não precisa baixar (ver passo 2) e, se quiser o arquivo, use o botão **↘ Download raw file** (canto superior direito da página).
-2. Postman → **Import** → aba **Link** → cole a URL acima → importa direto (ou Import → File, se baixou).
+1. **Download direto**: [PyBank.postman_collection.json](https://github.com/EnzoVieira3012/PyBank/releases/download/v0.4/PyBank.postman_collection.json) — clica e baixa o arquivo (Release asset, sem clone).
+2. Coleção: [PyBank.postman_collection.json](https://raw.githubusercontent.com/EnzoVieira3012/PyBank/develop/docs/postman/PyBank.postman_collection.json) — a URL abre o JSON no navegador; no Postman não precisa baixar (ver passo 3) e, se quiser o arquivo, use o botão **↘ Download raw file** (canto superior direito da página).
+3. Postman → **Import** → aba **Link** → cole a URL acima → importa direto (ou Import → File, se baixou).
 3. Abra a collection → aba **Variables** — edite só aqui: `baseUrl`, `apiEmail`, `apiSenha`.
 4. Rode `Login` primeiro — ele **preenche `accessToken`/`refreshToken` automaticamente** nos testes.
 5. Endpoints protegidos (`Me`, `Logout`) já usam `Authorization: Bearer {{accessToken}}` — nada hardcoded.
