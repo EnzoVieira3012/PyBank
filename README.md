@@ -107,6 +107,27 @@ mypy src
 
 ---
 
+## 🧪 Testar no Postman
+
+Collection pronta com **variáveis centralizadas** — configure uma vez, use em tudo:
+
+1. Baixe: [PyBank.postman_collection.json](https://raw.githubusercontent.com/EnzoVieira3012/PyBank/develop/docs/postman/PyBank.postman_collection.json)
+2. Postman → **Import** → selecione o arquivo.
+3. Abra a collection → aba **Variables** — edite só aqui: `baseUrl`, `apiEmail`, `apiSenha`.
+4. Rode `Login` primeiro — ele **preenche `accessToken`/`refreshToken` automaticamente** nos testes.
+5. Endpoints protegidos (`Me`, `Logout`) já usam `Authorization: Bearer {{accessToken}}` — nada hardcoded.
+
+| Request | Depende de |
+|---------|-----------|
+| `Health` | nada |
+| `Register` | `apiEmail`/`apiSenha` |
+| `Login` | `apiEmail`/`apiSenha` → grava tokens |
+| `Refresh` | `refreshToken` (rotação: reuso → 401) |
+| `Me` | `accessToken` |
+| `Logout` | `accessToken` + `refreshToken` |
+
+---
+
 ## 🔐 Autenticação
 
 JWT HS256 com refresh token rotativo e revogável (armazenado como hash SHA-256 no banco — token puro nunca persiste).
