@@ -6,7 +6,7 @@
 
 PyBank é uma API REST bancária `100% async` construída com FastAPI, SQLAlchemy 2.0 e PostgreSQL. Aplica arquitetura de mercado: camadas separadas (models / schemas / services / controllers), transações atômicas com `SELECT FOR UPDATE`, trilha de auditoria, idempotência, autenticação JWT com refresh token e cobertura de testes ≥ 90%.
 
-Open source (MIT License). Em desenvolvimento — setup, models, db, auth, transações, transferência, auditoria, idempotência e extrato concluídos.
+Open source (MIT License). Em desenvolvimento — setup, models, db, auth, transações, transferência, auditoria, idempotência, extrato, rate limit, API completa e cobertura concluídos. CI em `feature/ci`.
 
 ---
 
