@@ -110,11 +110,18 @@ async def client():
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters():
     """Suite compartilha mesmo IP no httpx.AsyncClient; sem reset, o
-    login_limiter esgota em 10 tentativas e derruba todos os outros testes."""
+    login_limiter esgota em 10 tentativas e derruba todos os outros testes.
+    Tambem restaura o callable de limite: testes que mutam _times (ex:
+    corrida x100) nao podem vazar para os vizinhos."""
+    from src.config import settings
     from src.rate_limit import login_limiter, mutation_limiter
 
     login_limiter.clear()
     mutation_limiter.clear()
+    login_limiter._times = lambda: settings.RATE_LIMIT_LOGIN
+    mutation_limiter._times = lambda: settings.RATE_LIMIT_MUTATIONS
     yield
     login_limiter.clear()
     mutation_limiter.clear()
+    login_limiter._times = lambda: settings.RATE_LIMIT_LOGIN
+    mutation_limiter._times = lambda: settings.RATE_LIMIT_MUTATIONS
