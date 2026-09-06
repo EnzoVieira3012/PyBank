@@ -1,0 +1,83 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+pip-wheel-metadata/
+
+# ===== Ambiente virtual =====
+.venv/
+venv/
+env/
+ENV/
+
+# ===== Testes / Cobertura =====
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.cache/
+hypothesis/
+
+# ===== Tooling =====
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+profile
+
+# ===== Segredos / Config =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+config/local*
+
+# ===== Banco de dados / Migrações locais =====
+*.db
+*.sqlite
+*.sqlite3
+*.postgres
+*.dump
+alembic/versions/*.pyc
+
+# ===== IDE / Editor =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# ===== SO =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Logs =====
+logs/
+*.log
+log/
+
+# ===== Docker (sem subir volumes locais/compose de outros ambientes) =====
+docker-compose.override.yml
+
+# ===== Aion / assistente =====
+.aionrs/
+
+# ===== Misc / temporários =====
+*.tmp
+*.bak
+*_o.txt
+tmp/
+temp/
