@@ -176,6 +176,20 @@ Regras de execução (atômicas, um único commit):
 
 ---
 
+## 🗂️ Auditoria (compliance)
+
+Toda operação financeira e de autenticação grava um `AuditLog` na **mesma transação** da operação:
+
+- Quem (`user_id`), quando (`created_at`), de onde (IP), e `before`/`after` com os saldos reais.
+- Depósito, saque e transferência: `action="deposit" | "withdraw" | "transfer"` com saldos antes/depois (transferência registra os dois lados: `from_balance`/`to_balance`).
+- Register, login, refresh e logout: `action` correspondente, sem conta.
+- **Correlation ID**: o header `X-Request-ID` (ou UUID gerado pelo middleware) fica em `correlation_id` do log — rastreio ponta a ponta de uma requisição.
+- Commit único: se a operação falha e dá rollback, o log some junto — **zero log órfão** (coerência de auditoria).
+
+Sem endpoint público de auditoria — dado é interno, para risco/compliance.
+
+---
+
 ## 🗄️ Modelos (schema)
 
 | Tabela | Campos principais | Constraints |
@@ -220,7 +234,7 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 3 | `feature/auth` | JWT + refresh token + register/login | ✅ |
 | 4 | `feature/transactions` | Depósito/saque com atomic UPDATE | ✅ |
 | 5 | `feature/transfer` | Transferência com SELECT FOR UPDATE | ✅ |
-| 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ⏳ |
+| 6 | `feature/audit` | Trilha de auditoria (antes/depois) | ✅ |
 | 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ⏳ |
 | 8 | `feature/statement` | Extrato e consultas | ⏳ |
 | 9 | `feature/rate-limit` | Rate limiting | ⏳ |
