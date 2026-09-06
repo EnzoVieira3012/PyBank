@@ -174,6 +174,22 @@ Separação rígida de camadas:
 
 ---
 
+## 🔧 Variáveis de ambiente
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `APP_NAME` | `PyBank` | Nome da aplicação |
+| `API_V1_STR` | `/api/v1` | Prefixo das rotas v1 |
+| `DATABASE_URL` | `postgresql+asyncpg://pybank:pybank@localhost:5432/pybank` | URL do Postgres |
+| `SECRET_KEY` | *(obrigatória)* | Chave JWT — fail-fast se ausente ou `changeme` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Validade do access token |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Validade do refresh token |
+| `RATE_LIMIT_TIMES` | `100` | Requests permitidos por janela |
+| `RATE_LIMIT_SECONDS` | `60` | Janela do rate limit (s) |
+| `CORS_ORIGINS` | `["http://localhost:8000"]` | Origens CORS (JSON list) |
+
+---
+
 ## 📜 Licença
 
 Este projeto está licenciado sob a [MIT License](LICENSE).
