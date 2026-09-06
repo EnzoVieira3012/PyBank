@@ -59,7 +59,7 @@ jobs:
       - name: Migra DB principal (saúde/duplicação)
         run: alembic upgrade head
       - name: Roda suite com cobertura
-        run: python -m pytest -v --tb=short
+        run: python -m pytest -v --tb=short --cov-report=term-missing
 
   docker:
     name: Docker build
