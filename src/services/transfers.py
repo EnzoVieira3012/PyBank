@@ -11,6 +11,7 @@ from src.models.account import Account
 from src.models.transaction import Transaction
 from src.models.user import User
 from src.schemas.enums import TransactionType
+from src.services.audit import registrar
 
 
 async def transferir(
@@ -19,6 +20,8 @@ async def transferir(
     to_account_id: uuid.UUID,
     amount: Decimal,
     user: User,
+    ip: str | None = None,
+    correlation_id: str | None = None,
 ) -> Transaction:
     """Transferencia atomica: lock das duas contas em ordem fixa (ORDER BY id),
     debito + credito + 2 Transaction em um unico commit. Qualquer erro -> rollback
@@ -48,6 +51,8 @@ async def transferir(
     if origem.balance < amount:
         raise BusinessError("insufficient balance")
 
+    from_bal_before = origem.balance
+    to_bal_before = destino.balance
     origem.balance -= amount
     destino.balance += amount
     tx_origem = Transaction(
@@ -63,6 +68,21 @@ async def transferir(
         counterpart_account_id=origem.id,
     )
     session.add_all([tx_origem, tx_destino])
-    await session.flush()
+    await registrar(
+        session,
+        action="transfer",
+        user_id=user.id,
+        account_id=origem.id,
+        before={
+            "from_balance": str(from_bal_before),
+            "to_balance": str(to_bal_before),
+        },
+        after={
+            "from_balance": str(origem.balance),
+            "to_balance": str(destino.balance),
+        },
+        ip=ip,
+        correlation_id=correlation_id,
+    )
     await session.refresh(tx_origem)
     return tx_origem

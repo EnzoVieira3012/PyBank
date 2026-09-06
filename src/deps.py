@@ -34,3 +34,11 @@ async def get_current_user(
     if user is None:
         raise CredentialsError("usuario inexistente")
     return user
+
+
+def client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+def correlation_id(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
