@@ -45,7 +45,12 @@ async def test_login_estoura_429_com_retry_after(client, monkeypatch) -> None:
     assert response.status_code == 429
     retry_after = int(response.headers["Retry-After"])
     assert 1 <= retry_after <= 61
-    assert response.json() == {"detail": "rate limit exceeded"}
+    body = response.json()
+    assert body["detail"] == "rate limit exceeded"
+    assert body["status_code"] == 429
+    assert body["path"] == "/api/v1/auth/login"
+    assert body["method"] == "POST"
+    assert body["correlation_id"]
 
 
 async def test_mutacao_429_por_usuario_nao_por_ip(client, monkeypatch) -> None:
