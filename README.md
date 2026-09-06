@@ -81,6 +81,8 @@ alembic upgrade head
 python -m uvicorn src.main:app --reload
 ```
 
+> 🔐 **Segurança**: credenciais do banco (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`) vivem **só** no `.env` (gitignored). O `docker-compose.yml` referencia `.env` — nunca credenciais hardcoded em arquivos commitados.
+
 Docs interativas: **http://localhost:8000/docs**
 
 ---
@@ -88,7 +90,7 @@ Docs interativas: **http://localhost:8000/docs**
 ## 🧪 Testes e qualidade
 
 ```powershell
-# Testes
+# Testes (requer Docker up — usa Postgres real, não fake)
 python -m pytest
 
 # Cobertura (meta: ≥90%)
@@ -101,6 +103,8 @@ ruff format .
 # Tipagem
 mypy src
 ```
+
+> Migrações são manuais (`alembic upgrade head`) — **nunca `create_all`** (síncrono, quebra com asyncpg). CI/deploy rodam migração por script.
 
 ---
 

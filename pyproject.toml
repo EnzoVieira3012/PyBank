@@ -1,6 +1,8 @@
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+# Migracoes geradas pelo alembic ficam fora do lint/format
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 ignore = ["UP037"]  # quotes em forward refs SQLAlchemy (Mapped["User"]) sao intencionais
@@ -10,6 +12,9 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Loop unico para a suite: engine async global + pool precisam de loop estavel
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 
 [tool.mypy]
