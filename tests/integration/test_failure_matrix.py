@@ -28,6 +28,7 @@ PASSWORD = "senha-forte-123"
 
 # --- helpers ---------------------------------------------------------------
 
+
 async def _register(client: AsyncClient, email: str) -> None:
     r = await client.post("/api/v1/auth/register", json={"email": email, "password": PASSWORD})
     assert r.status_code == 201, r.text
@@ -52,6 +53,7 @@ async def _saldo(account_id: str) -> Decimal:
 
 # --- 1) Duplicado: mesmo Idempotency-Key replay retorna resposta identica ---
 
+
 async def test_falha_duplicado_idempotency_key_replay(client) -> None:
     """POST com mesma Idempotency-Key 2x: 1 efeito, 2 respostas identicas."""
     await _register(client, "dup@example.com")
@@ -64,8 +66,12 @@ async def test_falha_duplicado_idempotency_key_replay(client) -> None:
     payload = {"amount": "25.00"}
     headers = _auth(token, key)
 
-    r1 = await client.post(f"/api/v1/accounts/{conta['id']}/deposits", json=payload, headers=headers)
-    r2 = await client.post(f"/api/v1/accounts/{conta['id']}/deposits", json=payload, headers=headers)
+    r1 = await client.post(
+        f"/api/v1/accounts/{conta['id']}/deposits", json=payload, headers=headers
+    )
+    r2 = await client.post(
+        f"/api/v1/accounts/{conta['id']}/deposits", json=payload, headers=headers
+    )
 
     assert r1.status_code == 201
     assert r2.status_code == 201
@@ -85,6 +91,7 @@ async def test_falha_duplicado_idempotency_key_replay(client) -> None:
 
 
 # --- 2) Corrida: 100 saques concorrentes, saldo invariante ----------------
+
 
 async def test_falha_corrida_100_saques_saldo_invariante() -> None:
     """100 saques de 1.00 contra saldo 100.00, em paralelo: 100 sucessos,
@@ -167,6 +174,7 @@ async def test_falha_corrida_100_saques_saldo_invariante() -> None:
 
 # --- 3) Saldo insuficiente: 409 e NADA gravado -----------------------------
 
+
 async def test_falha_saldo_insuficiente_409_sem_efeito(client) -> None:
     """Saque e transferencia com saldo < valor -> 409. 0 transactions, 0 audit_logs."""
     await _register(client, "insuf@example.com")
@@ -229,5 +237,7 @@ async def test_falha_saldo_insuficiente_409_sem_efeito(client) -> None:
             )
         ).scalar_one()
     assert after_tx == before_tx, f"transacao gravada indevidamente: {before_tx}->{after_tx}"
-    assert after_audit == before_audit, f"audit gravado indevidamente: {before_audit}->{after_audit}"
+    assert after_audit == before_audit, (
+        f"audit gravado indevidamente: {before_audit}->{after_audit}"
+    )
     assert await _saldo(conta["id"]) == Decimal("10.00")

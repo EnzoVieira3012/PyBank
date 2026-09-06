@@ -3,25 +3,26 @@
 Uso: python scripts/seed.py
 Roda no banco de desenvolvimento (DATABASE_URL do .env). Idempotente:
 re-executar apaga e recria os dados do seed."""
+
 from __future__ import annotations
 
 import asyncio
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.dialects.postgresql import insert  # noqa: E402
+from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
 
-from src.database import async_session, engine  # noqa: E402
-from src.models.account import Account  # noqa: E402
-from src.models.transaction import Transaction  # noqa: E402
-from src.models.user import User  # noqa: E402
-from src.schemas.enums import TransactionType  # noqa: E402
+from src.database import async_session, engine
+from src.models.account import Account
+from src.models.transaction import Transaction
+from src.models.user import User
+from src.schemas.enums import TransactionType
 
 SEED_EMAIL = "seed@example.com"
 N = 10_000
@@ -35,13 +36,13 @@ async def main() -> None:
         user = User(email=SEED_EMAIL, password_hash="x")
         session.add(user)
         await session.flush()
-        acc_a = Account(user_id=user.id, balance=Decimal("0"))
-        acc_b = Account(user_id=user.id, balance=Decimal("0"))
+        acc_a = Account(user_id=user.id, balance=Decimal(0))
+        acc_b = Account(user_id=user.id, balance=Decimal(0))
         session.add_all([acc_a, acc_b])
         await session.commit()
         a_id, b_id = acc_a.id, acc_b.id
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     types = [TransactionType.DEPOSIT, TransactionType.WITHDRAW, TransactionType.TRANSFER]
     rows = [
         {

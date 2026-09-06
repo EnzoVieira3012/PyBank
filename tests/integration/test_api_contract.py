@@ -5,12 +5,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.config import Settings
-from src.database import async_session
 from src.main import create_app
 
 
@@ -46,7 +44,8 @@ async def test_erro_validacao_tem_envelope_uniforme(client) -> None:
 async def test_erro_business_tem_correlation_id(client) -> None:
     """404/409 via BusinessError herdam envelope de debug."""
     user_resp = await client.post(
-        "/api/v1/auth/register", json={"email": "envteste@example.com", "password": "senha-forte-123"}
+        "/api/v1/auth/register",
+        json={"email": "envteste@example.com", "password": "senha-forte-123"},
     )
     assert user_resp.status_code == 201
     login = await client.post(

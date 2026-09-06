@@ -14,6 +14,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable
+from typing import Annotated
 
 from fastapi import Depends, Request
 
@@ -70,7 +71,7 @@ async def limite_login(request: Request) -> None:
     _check(login_limiter, f"ip:{host}")
 
 
-async def limite_mutacao(user: User = Depends(get_current_user)) -> None:
+async def limite_mutacao(user: Annotated[User, Depends(get_current_user)]) -> None:
     """Por usuario em deposits/withdrawals/transfers: nunca por IP, para nao
     derrubar quem compartilha NAT."""
     _check(mutation_limiter, f"user:{user.id}")

@@ -7,7 +7,7 @@ from sqlalchemy import select, update
 pytestmark = pytest.mark.asyncio
 
 PASSWORD = "senha-forte-123"
-BASE = datetime(2026, 9, 1, 10, 0, 0)
+BASE = datetime(2026, 9, 1, 10, 0, 0)  # noqa: DTZ001 - Pydantic rejeita offset +00:00, aceita naive
 
 
 async def _register(client, email: str = "extrato@example.com"):
@@ -62,7 +62,9 @@ async def _set_created_at(account_id: str, datetimes: list[datetime]) -> None:
         ).all()
         assert len(rows) == len(datetimes), "quantidade de lancamentos difere da lista de datas"
         for (txn_id, _), dt in zip(rows, datetimes):
-            await conn.execute(update(Transaction).where(Transaction.id == txn_id).values(created_at=dt))
+            await conn.execute(
+                update(Transaction).where(Transaction.id == txn_id).values(created_at=dt)
+            )
         await conn.commit()
 
 

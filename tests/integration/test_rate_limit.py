@@ -62,12 +62,8 @@ async def test_mutacao_429_por_usuario_nao_por_ip(client, monkeypatch) -> None:
     await _register(client, "b@example.com")
     tok_a = (await _login(client, "a@example.com")).json()["access_token"]
     tok_b = (await _login(client, "b@example.com")).json()["access_token"]
-    conta_a = (
-        await client.post("/api/v1/accounts", json={}, headers=await _auth(tok_a))
-    ).json()
-    conta_b = (
-        await client.post("/api/v1/accounts", json={}, headers=await _auth(tok_b))
-    ).json()
+    conta_a = (await client.post("/api/v1/accounts", json={}, headers=await _auth(tok_a))).json()
+    conta_b = (await client.post("/api/v1/accounts", json={}, headers=await _auth(tok_b))).json()
 
     # A: 2 deps (limite) + 3o deve 429
     for _ in range(2):

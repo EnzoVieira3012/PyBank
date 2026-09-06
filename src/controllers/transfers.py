@@ -22,7 +22,12 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 IdempotencyDep = Annotated[IdempotencyContext, Depends(require_idempotency_key)]
 
 
-@router.post("/transfers", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Transferir entre contas (limite por usuario)")
+@router.post(
+    "/transfers",
+    status_code=201,
+    dependencies=[Depends(limite_mutacao)],
+    summary="Transferir entre contas (limite por usuario)",
+)
 async def transfer(
     payload: TransferIn,
     user: CurrentUser,
