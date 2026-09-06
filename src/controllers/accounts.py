@@ -11,6 +11,7 @@ from src.database import get_session
 from src.deps import client_ip, correlation_id, get_current_user
 from src.models.account import Account
 from src.models.user import User
+from src.rate_limit import limite_mutacao
 from src.schemas.account import AccountOut, AmountIn
 from src.services import accounts as accounts_service
 from src.services import idempotency as idempotency_service
@@ -22,7 +23,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 IdempotencyDep = Annotated[IdempotencyContext, Depends(require_idempotency_key)]
 
 
-@router.post("/accounts", response_model=AccountOut, status_code=201)
+@router.post("/accounts", response_model=AccountOut, status_code=201, summary="Criar conta")
 async def create_account(user: CurrentUser, session: SessionDep) -> Account:
     return await accounts_service.criar_conta(session, user)
 
@@ -32,7 +33,7 @@ async def list_accounts(user: CurrentUser, session: SessionDep) -> list[Account]
     return await accounts_service.listar_contas(session, user)
 
 
-@router.post("/accounts/{account_id}/deposits", status_code=201)
+@router.post("/accounts/{account_id}/deposits", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Depositar (limite por usuario)")
 async def deposit(
     account_id: uuid.UUID,
     payload: AmountIn,
@@ -61,7 +62,7 @@ async def deposit(
     return Response(content=body, status_code=201, media_type="application/json")
 
 
-@router.post("/accounts/{account_id}/withdrawals", status_code=201)
+@router.post("/accounts/{account_id}/withdrawals", status_code=201, dependencies=[Depends(limite_mutacao)], summary="Sacar (limite por usuario)")
 async def withdraw(
     account_id: uuid.UUID,
     payload: AmountIn,

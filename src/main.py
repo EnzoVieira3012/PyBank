@@ -12,6 +12,7 @@ from src.database import engine
 from src.exceptions import AccountNotFoundError, BusinessError
 from src.logging_setup import setup_logging
 from src.middleware import RequestContextMiddleware
+from src.rate_limit import RateLimitError
 from src.security import CredentialsError
 
 logger = logging.getLogger("pybank")
@@ -61,6 +62,15 @@ async def account_not_found_handler(request: Request, exc: AccountNotFoundError)
 @app.exception_handler(BusinessError)
 async def business_error_handler(request: Request, exc: BusinessError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(RateLimitError)
+async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "rate limit exceeded"},
+        headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 app.include_router(auth.router)
