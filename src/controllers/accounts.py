@@ -25,7 +25,9 @@ IdempotencyDep = Annotated[IdempotencyContext, Depends(require_idempotency_key)]
 
 @router.post("/accounts", response_model=AccountOut, status_code=201, summary="Criar conta")
 async def create_account(user: CurrentUser, session: SessionDep) -> Account:
-    return await accounts_service.criar_conta(session, user)
+    account = await accounts_service.criar_conta(session, user)
+    await session.commit()  # conta visivel antes da resposta
+    return account
 
 
 @router.get("/accounts", response_model=list[AccountOut])
@@ -64,6 +66,7 @@ async def deposit(
     )
     body = AccountOut.model_validate(account).model_dump_json()
     await idempotency_service.complete(session, user.id, idem.key, 201, body)
+    await session.commit()  # mutacao + claim idempotencia visiveis antes da resposta
     return Response(content=body, status_code=201, media_type="application/json")
 
 
@@ -98,4 +101,5 @@ async def withdraw(
     )
     body = AccountOut.model_validate(account).model_dump_json()
     await idempotency_service.complete(session, user.id, idem.key, 201, body)
+    await session.commit()  # mutacao + claim idempotencia visiveis antes da resposta
     return Response(content=body, status_code=201, media_type="application/json")

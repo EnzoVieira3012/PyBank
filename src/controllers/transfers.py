@@ -59,4 +59,5 @@ async def transfer(
         created_at=tx.created_at,
     ).model_dump_json()
     await idempotency_service.complete(session, user.id, idem.key, 201, body)
+    await session.commit()  # transferencia + claim idempotencia visiveis antes da resposta
     return Response(content=body, status_code=201, media_type="application/json")
