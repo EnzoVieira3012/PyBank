@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from src.config import settings
-from src.controllers import accounts, auth, me, transfers
+from src.controllers import accounts, auth, me, statements, transfers
 from src.database import engine
 from src.exceptions import AccountNotFoundError, BusinessError
 from src.logging_setup import setup_logging
@@ -66,6 +66,7 @@ async def business_error_handler(request: Request, exc: BusinessError) -> JSONRe
 app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(transfers.router)
+app.include_router(statements.router)
 app.include_router(me.router)
 
 
