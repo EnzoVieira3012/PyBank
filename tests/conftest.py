@@ -42,8 +42,8 @@ TEST_DATABASE_URL = _test_database_url()
 # Antes de qualquer import de src: engines singletons (app/database) nascem apontando o teste.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-from src.database import async_session, engine  # noqa: E402
-from src.main import app  # noqa: E402
+from src.database import async_session, engine
+from src.main import app
 
 
 @pytest.fixture(scope="session", autouse=True)
