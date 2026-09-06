@@ -6,7 +6,7 @@
 
 PyBank é uma API REST bancária `100% async` construída com FastAPI, SQLAlchemy 2.0 e PostgreSQL. Aplica arquitetura de mercado: camadas separadas (models / schemas / services / controllers), transações atômicas com `SELECT FOR UPDATE`, trilha de auditoria, idempotência, autenticação JWT com refresh token e cobertura de testes ≥ 90%.
 
-Open source (MIT License). Em desenvolvimento — Módulos 0 a 3 concluídos (setup, models, db, auth).
+Open source (MIT License). Em desenvolvimento — setup, models, db, auth, transações, transferência, auditoria, idempotência e extrato concluídos.
 
 ---
 
@@ -201,7 +201,41 @@ Header **`Idempotency-Key`** obrigatório nos métodos mutáveis (`deposits`, `w
 - **TTL**: chave expira em 24h (`expires_at`) — expirada volta a aceitar claim como novo.
 - **Rollback junto**: operação que falha dá rollback da chave também — retry executa limpo.
 
-Decisão de arquitetura: tabela Postgres com `UNIQUE(user_id, key)` resolve a corrida com constraint atômica — sem dependência externa. Redis (ou similar) só faria sentido com escala horizontal multi-instância (trade-off revisitado em deploy — módulo 13).
+Decisão de arquitetura: tabela Postgres com `UNIQUE(user_id, key)` resolve a corrida com constraint atômica — sem dependência externa. Redis (ou similar) só faria sentido com escala horizontal multi-instância (trade-off revisitado no deploy).
+
+---
+
+## 📄 Extrato paginado
+
+`GET /api/v1/accounts/{account_id}/statement` — lançamentos da conta, paginados e filtráveis. Acesso restrito ao dono da conta (outro usuário → 404).
+
+| Query | Tipo | Padrão | Descrição |
+|-------|------|--------|-----------|
+| `page` | int | 1 | Página (≥ 1) |
+| `page_size` | int | 20 | Itens por página (1–100) |
+| `type` | `deposit`/`withdraw`/`transfer` | — | Filtra por tipo |
+| `from` | datetime | — | `created_at >=` (inclusivo) |
+| `to` | datetime | — | `created_at <=` (inclusivo) |
+
+Ordena por `created_at DESC, id DESC` (mais recentes primeiro). Resposta:
+
+```json
+{
+  "account_id": "uuid",
+  "items": [
+    { "id": "uuid", "type": "deposit", "amount": "100.00", "created_at": "2026-09-01T10:00:00" }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total_items": 1, "total_pages": 1 }
+}
+```
+
+Exemplo com filtros:
+
+```
+GET /api/v1/accounts/{id}/statement?page=2&page_size=5&type=deposit&from=2026-09-01T00:00:00&to=2026-09-30T23:59:59
+```
+
+Performance: índice composto `(account_id, created_at DESC)` mantém leitura por conta em Index Scan — `EXPLAIN ANALYZE` mostrou ganho ≈14× vs. planos com Sort (detalhes em `docs/medicoes.md`).
 
 ---
 
