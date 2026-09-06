@@ -8,7 +8,7 @@ pytestmark = pytest.mark.asyncio
 async def test_health_returns_ok(client) -> None:
     response = await client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "database": "ok"}
 
 
 async def test_health_headers_present(client) -> None:
@@ -19,5 +19,5 @@ async def test_health_headers_present(client) -> None:
 
 
 async def test_app_metadata() -> None:
-    assert app.title == "PyBank"
-    assert app.version == "0.1.0"
+    assert app.title == "PyBank API"
+    assert app.version == "1.0.0"
