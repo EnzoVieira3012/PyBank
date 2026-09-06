@@ -241,6 +241,65 @@ Quando migrar para mais de 1 instância, trocar os `RateLimiter` in-memory por R
 
 ---
 
+## 📚 Documentação da API
+
+| Recurso | URL | |
+|---------|-----|---|
+| Swagger UI | `http://localhost:8000/docs` | Interativo, testa direto do navegador |
+| ReDoc | `http://localhost:8000/redoc` | Documentação somente leitura |
+| OpenAPI JSON | `http://localhost:8000/openapi.json` | Schema para geração de clientes |
+
+A factory `create_app()` produz uma instância FastAPI com:
+
+- `title="PyBank API"`, `version="1.0.0"`, `openapi_tags` por recurso (auth/accounts/transfers/statements/me/health)
+- Status `201` em todos os POSTs de mutação
+- Error handlers JSON uniformes (ver abaixo)
+
+### Envelope de erro padrão
+
+Toda resposta de erro retorna:
+
+```json
+{
+  "detail": "mensagem legível",
+  "status_code": 404,
+  "path": "/api/v1/transfers",
+  "method": "POST",
+  "correlation_id": "uuid-v4"
+}
+```
+
+| Status | Quando | Handler |
+|--------|--------|---------|
+| 400 | Regra de negócio com body específico (transferência inválida) | `BusinessError` filha |
+| 401 | Credenciais inválidas | `CredentialsError` |
+| 404 | Conta/transação não encontrada | `BusinessError` filha (`AccountNotFoundError`) |
+| 409 | Conflito (idempotência em uso) | `BusinessError` filha (`IdempotencyConflictError`) |
+| 422 | Validação (Pydantic) | `RequestValidationError` (envelope inclui `errors[]`) |
+| 429 | Rate limit estourado | `RateLimitError` (header `Retry-After`) |
+| 500 | Erro inesperado (logado, não exposto) | `Exception` |
+
+`correlation_id` vem do middleware (`RequestContextMiddleware`); útil para cruzar com `logs/`.
+
+### Endpoints
+
+| Método | Path | Auth | Status sucesso | Descrição |
+|--------|------|------|----------------|-----------|
+| POST | `/api/v1/auth/register` | — | 201 | Cadastro |
+| POST | `/api/v1/auth/login` | — | 200 | Login (limit IP) |
+| POST | `/api/v1/auth/refresh` | — | 200 | Renovar tokens (limit IP) |
+| POST | `/api/v1/auth/logout` | sim | 204 | Revoga refresh token |
+| GET  | `/api/v1/me` | sim | 200 | Dados do usuário |
+| POST | `/api/v1/accounts` | sim | 201 | Criar conta |
+| GET  | `/api/v1/accounts` | sim | 200 | Listar contas |
+| POST | `/api/v1/accounts/{id}/deposits` | sim | 201 | Depositar (limit user) |
+| POST | `/api/v1/accounts/{id}/withdrawals` | sim | 201 | Sacar (limit user) |
+| POST | `/api/v1/transfers` | sim | 201 | Transferir (limit user) |
+| GET  | `/api/v1/accounts/{id}/statement` | sim | 200 | Extrato paginado |
+| GET  | `/health` | — | 200/503 | Health check com ping no DB |
+
+---
+
 ## 📄 Extrato paginado
 
 `GET /api/v1/accounts/{account_id}/statement` — lançamentos da conta, paginados e filtráveis. Acesso restrito ao dono da conta (outro usuário → 404).
@@ -323,7 +382,7 @@ Todos os models herdam `UUIDMixin` (PK UUID default `uuid4`) + `TimestampMixin` 
 | 7 | `feature/idempotency` | Idempotency-Key (409/replay/corrida) | ✅ |
 | 8 | `feature/statement` | Extrato e consultas | ✅ |
 | 9 | `feature/rate-limit` | Rate limiting | ✅ |
-| 10 | `feature/api` | REST /api/v1 completo + error handlers | ⏳ |
+| 10 | `feature/api` | REST /api/v1 completo + error handlers | ✅ |
 | 11 | `feature/coverage` | Cobertura de testes ≥90% | ⏳ |
 | 12 | `feature/ci` | GitHub Actions | ⏳ |
 | 13 | `feature/docs` | README EN/PT | ⏳ |
