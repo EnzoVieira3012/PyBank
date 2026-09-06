@@ -4,6 +4,7 @@ teardown (depois do yield/response do FastAPI); register+login em rajada
 falhava ~1/5 com 401 (login nao enxergava o user ainda nao commitado).
 Fix: commit explicito em toda rota mutante (auth, accounts, transfers).
 """
+
 import time
 
 import httpx
@@ -19,11 +20,15 @@ async def test_mutation_visible_immediately(client: httpx.AsyncClient) -> None:
     """Burst register->login / deposit->saldo sem pausa: 100% 200."""
     for _ in range(8):
         email, pw = _new_email(), "Str0ng!Pass123"
-        r = await client.post(f"{API}/auth/register", json={"email": email, "password": pw, "full_name": "Vis"})
+        r = await client.post(
+            f"{API}/auth/register", json={"email": email, "password": pw, "full_name": "Vis"}
+        )
         assert r.status_code == 201, f"register {r.status_code}: {r.text}"
 
         r = await client.post(f"{API}/auth/login", json={"email": email, "password": pw})
-        assert r.status_code == 200, f"login logo apos register {r.status_code}: {r.text} — commit nao visivel"
+        assert r.status_code == 200, (
+            f"login logo apos register {r.status_code}: {r.text} — commit nao visivel"
+        )
         tok = r.json()["access_token"]
         auth = {"Authorization": f"Bearer {tok}"}
 
