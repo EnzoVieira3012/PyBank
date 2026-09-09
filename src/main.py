@@ -137,6 +137,30 @@ def create_app(cfg: Settings | None = None) -> FastAPI:
     # --- routers ---
     app.include_router(api_router)
 
+    # --- Swagger: botao "Authorize" para JWT ---
+    def _openapi_with_jwt():
+        if app.openapi_schema:
+            return app.openapi_schema
+        from fastapi.openapi.utils import get_openapi
+
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+            tags=app.openapi_tags,
+        )
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["BearerAuth"] = {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+        schema["security"] = [{"BearerAuth": []}]
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = _openapi_with_jwt  # type: ignore[method-assign]
+
     # --- health: ping no banco via session; 503 se DB fora ---
     @app.api_route(
         "/health",
